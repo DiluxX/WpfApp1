@@ -23,7 +23,7 @@ namespace WpfApp1
         // Вход как гость
         private void GuestButton_Click(object sender, RoutedEventArgs e)
         {
-            OpenNewsMainWindow("guest", "Гость", 0);
+            OpenRegionSelectWindow("guest", "Гость", 0);
         }
 
         // Вход с авторизацией
@@ -58,8 +58,8 @@ namespace WpfApp1
 
                 if (result.success)
                 {
-                    // Успешный вход
-                    OpenNewsMainWindow(result.role, result.username, result.userId);
+                    // Успешный вход → открываем окно выбора местности
+                    OpenRegionSelectWindow(result.role, result.username, result.userId);
                 }
                 else
                 {
@@ -78,12 +78,12 @@ namespace WpfApp1
             }
         }
 
-        // Открытие окна новостей
-        private void OpenNewsMainWindow(string role, string username, int userId)
+        // Открытие окна выбора местности
+        private void OpenRegionSelectWindow(string role, string username, int userId)
         {
-            var newsMainWindow = new news_main(role, username, userId);
-            newsMainWindow.WindowStartupLocation = WindowStartupLocation.CenterScreen;
-            newsMainWindow.Show();
+            var regionSelectWindow = new RegionSelectWindow(role, username, userId);
+            regionSelectWindow.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+            regionSelectWindow.Show();
             this.Close();
         }
 

@@ -4,7 +4,120 @@
         Title="Новостной портал" Height="774" Width="1200"
         WindowStartupLocation="CenterScreen">
 
-    <Grid>
+    <Window.Resources>
+        <!-- Стиль для карточки новости -->
+        <Style x:Key="NewsCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+            <Setter Property="Padding" Value="14"/>
+            <Setter Property="BorderBrush" Value="#E8EDF2"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#F0F7FF"/>
+                    <Setter Property="BorderBrush" Value="#2196F3"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Стиль кнопки категории -->
+        <Style x:Key="CategoryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="#E0E0E0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="Margin" Value="0,2"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#E3F2FD"/>
+                                <Setter Property="BorderBrush" Value="#2196F3"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Стиль активной категории -->
+        <Style x:Key="ActiveCategoryButtonStyle" TargetType="Button" BasedOn="{StaticResource CategoryButtonStyle}">
+            <Setter Property="Background" Value="#2196F3"/>
+            <Setter Property="BorderBrush" Value="#1976D2"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+
+        <!-- Стиль поиска -->
+        <Style x:Key="SearchBoxStyle" TargetType="TextBox">
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="Padding" Value="10,0"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="BorderBrush" Value="#D0D7DE"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border Background="White" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8">
+                            <ScrollViewer x:Name="PART_ContentHost" Margin="10,0" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsFocused" Value="True">
+                                <Setter Property="BorderBrush" Value="#2196F3"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Стиль кнопки действия -->
+        <Style x:Key="ActionButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="Padding" Value="14,0"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Opacity" Value="0.85"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Background="#F4F6F9">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -12,48 +125,79 @@
         </Grid.RowDefinitions>
 
         <!-- Шапка -->
-        <Border Grid.Row="0" Background="#2196F3" Padding="10">
+        <Border Grid.Row="0" Background="#1565C0" Padding="16,10">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0" Orientation="Horizontal">
-                    <TextBlock x:Name="WelcomeTextBlock" Text="Добро пожаловать!" 
-                               Foreground="White" FontSize="16" FontWeight="Bold" VerticalAlignment="Center"/>
-                    <TextBlock x:Name="RoleTextBlock" Text="Роль: " 
-                               Foreground="White" FontSize="12" Margin="20,0,0,0" VerticalAlignment="Center"/>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Логотип -->
+                    <Border Background="#FFFFFF22" CornerRadius="6" Padding="8,4" Margin="0,0,12,0">
+                        <TextBlock Text="&#x1F4F0;" FontSize="18" VerticalAlignment="Center"/>
+                    </Border>
+                    <StackPanel>
+                        <TextBlock Text="НОВОСТНОЙ ПОРТАЛ" 
+                                   Foreground="White" FontSize="14" FontWeight="Bold"/>
+                        <TextBlock x:Name="WelcomeTextBlock" Text="" 
+                                   Foreground="#B3D4FF" FontSize="11"/>
+                    </StackPanel>
+                    <Border Background="#FF008BE4" CornerRadius="12" Padding="10,3" Margin="10,0,0,0"
+                            VerticalAlignment="Center">
+                        <TextBlock x:Name="RoleTextBlock" Text="" 
+                                   Foreground="White" FontSize="11" FontWeight="SemiBold"/>
+                    </Border>
+                    <!-- Бейдж выбранного региона -->
+                    <Border x:Name="RegionBadge" Background="#4CAF50" CornerRadius="12" Padding="10,3" Margin="8,0,0,0"
+                            VerticalAlignment="Center" Visibility="Collapsed">
+                        <TextBlock x:Name="RegionTextBlock" Text="" 
+                                   Foreground="White" FontSize="11" FontWeight="SemiBold"/>
+                    </Border>
                 </StackPanel>
 
                 <!-- Кнопки управления -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="ChangeRegionButton" 
+                            Content="&#x1F3D9; Сменить город" 
+                            Width="140" Height="32"
+                            Margin="5,0" 
+                            Click="ChangeRegionButton_Click"
+                            Background="#FF9800"
+                            Foreground="White"
+                            BorderThickness="0"
+                            FontWeight="SemiBold"
+                            Style="{StaticResource ActionButtonStyle}"/>
                     <Button x:Name="ProfileButton" 
-                            Content="Мой профиль" 
-                                Width="100"
-                                    Height="30"
-                                        Margin="5,0" 
+                            Content="&#x1F464; Профиль" 
+                            Width="100" Height="32"
+                            Margin="5,0" 
                             Click="ProfileButton_Click"
-                                Background="#4CAF50"
-                                Foreground="White"
-                                        FontWeight="Bold"/>
+                            Background="#4CAF50"
+                            Foreground="White"
+                            BorderThickness="0"
+                            FontWeight="SemiBold"
+                            Style="{StaticResource ActionButtonStyle}"/>
                     <Button x:Name="LoadButton" 
-                            Content="Обновить" 
-                                Width="80"
-                                    Height="30"
-                                        Margin="5,0" 
+                            Content="&#x1F504; Обновить" 
+                            Width="100" Height="32"
+                            Margin="5,0" 
                             Click="LoadButton_Click" 
-                                Background="White"
-                                    FontWeight="Bold"/>
+                            Background="White"
+                            Foreground="#1565C0"
+                            BorderThickness="0"
+                            FontWeight="SemiBold"
+                            Style="{StaticResource ActionButtonStyle}"/>
                     <Button x:Name="LogoutButton" 
                             Content="Выйти" 
-                            Width="80"
-                            Height="30"
+                            Width="80" Height="32"
                             Margin="5,0" 
                             Click="LogoutButton_Click" 
-                            Background="White"
-                            Foreground="#D32F2F"
-                            FontWeight="Bold"/>
+                            Background="#EF5350"
+                            Foreground="White"
+                            BorderThickness="0"
+                            FontWeight="SemiBold"
+                            Style="{StaticResource ActionButtonStyle}"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -61,169 +205,331 @@
         <!-- Основное содержание -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="250"/>
+                <ColumnDefinition Width="220"/>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="400"/>
+                <ColumnDefinition Width="380"/>
             </Grid.ColumnDefinitions>
 
             <!-- Левая панель: категории и поиск -->
-            <Border Grid.Column="0" BorderBrush="LightGray" BorderThickness="0,0,1,0">
+            <Border Grid.Column="0" Background="White" 
+                    BorderBrush="#E8EDF2" BorderThickness="0,0,1,0">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
                     <!-- Поиск -->
-                    <StackPanel Grid.Row="0" Margin="10" Background="#F5F5F5">
-                        <TextBlock Text="Поиск новостей" FontWeight="Bold" Margin="0,0,0,5"/>
-                        <TextBox x:Name="SearchTextBox" Height="30" Margin="0,0,0,5" Padding="5"/>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                    <StackPanel Grid.Row="0" Margin="12,14,12,10">
+                        <TextBlock Text="ПОИСК" FontSize="10" FontWeight="Bold" 
+                                   Foreground="#90A4AE" Margin="0,0,0,6"/>
+                        <TextBox x:Name="SearchTextBox" 
+                                 Style="{StaticResource SearchBoxStyle}"
+                                 KeyDown="SearchTextBox_KeyDown"/>
+                        <Grid Margin="0,6,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
                             <Button x:Name="SearchButton" Content="Найти" 
-                                    Width="80" Height="30" Click="SearchButton_Click"
-                                    Background="#2196F3" Foreground="White"/>
-                            <Button x:Name="ClearSearchButton" Content="Очистить" 
-                                    Width="80" Height="30" Margin="5,0,0,0" 
-                                    Click="ClearSearchButton_Click"/>
-                        </StackPanel>
+                                    Grid.Column="0"
+                                    Height="32" Margin="0,0,4,0"
+                                    Click="SearchButton_Click"
+                                    Background="#2196F3" Foreground="White"
+                                    BorderThickness="0"
+                                    Style="{StaticResource ActionButtonStyle}"/>
+                            <Button x:Name="ClearSearchButton" Content="&#x2715;" 
+                                    Grid.Column="1"
+                                    Width="32" Height="32"
+                                    Click="ClearSearchButton_Click"
+                                    Background="#F5F5F5" Foreground="#666"
+                                    BorderBrush="#E0E0E0" BorderThickness="1"
+                                    Style="{StaticResource ActionButtonStyle}"/>
+                        </Grid>
                     </StackPanel>
+
+                    <!-- Разделитель -->
+                    <Border Grid.Row="1" Height="1" Background="#F0F0F0" Margin="12,0"/>
 
                     <!-- Категории -->
-                    <StackPanel Grid.Row="1" Margin="10">
-                        <TextBlock Text="Категории" FontWeight="Bold" Margin="0,0,0,5"/>
-                        <ListBox x:Name="CategoriesListBox" Height="300" 
-                                 SelectionChanged="CategoriesListBox_SelectionChanged"
-                                 BorderThickness="1" BorderBrush="#E0E0E0">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <Border Padding="5" Margin="2" Background="Transparent">
-                                        <TextBlock Text="{Binding}" FontSize="12"/>
-                                    </Border>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                    </StackPanel>
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Hidden">
+                        <StackPanel x:Name="CategoriesPanel" Margin="12,10,12,0">
+                            <TextBlock Text="КАТЕГОРИИ" FontSize="10" FontWeight="Bold" 
+                                       Foreground="#90A4AE" Margin="0,0,0,8"/>
+                        </StackPanel>
+                    </ScrollViewer>
 
                     <!-- Кнопки управления (по ролям) -->
-                    <Border Grid.Row="2" Margin="10" Background="#F5F5F5" Padding="10">
+                    <Border Grid.Row="3" BorderBrush="#F0F0F0" BorderThickness="0,1,0,0" Padding="12,10">
                         <StackPanel>
-                            <TextBlock Text="Управление" FontWeight="Bold" Margin="0,0,0,5"/>
-                            <Button x:Name="ModerateCommentsButton" Content="Модерация" 
-                                    Height="35" Margin="0,5" Click="ModerateCommentsButton_Click" 
-                                    Visibility="Collapsed" Background="#FF9800" Foreground="White"/>
-                            <Button x:Name="ManageUsersButton" Content="Пользователи" 
-                                    Height="35" Margin="0,5" Click="ManageUsersButton_Click" 
-                                    Visibility="Collapsed" Background="#9C27B0" Foreground="White"/>
+                            <TextBlock Text="УПРАВЛЕНИЕ" FontSize="10" FontWeight="Bold" 
+                                       Foreground="#90A4AE" Margin="0,0,0,8"/>
+                            <Button x:Name="ModerateCommentsButton" Content="&#x1F6E1; Модерация" 
+                                    Height="32" Margin="0,2"
+                                    Click="ModerateCommentsButton_Click" 
+                                    Visibility="Collapsed" 
+                                    Background="#FF9800" Foreground="White"
+                                    BorderThickness="0"
+                                    Style="{StaticResource ActionButtonStyle}"/>
+                            <Button x:Name="ManageUsersButton" Content="&#x1F465; Пользователи" 
+                                    Height="32" Margin="0,2"
+                                    Click="ManageUsersButton_Click" 
+                                    Visibility="Collapsed" 
+                                    Background="#9C27B0" Foreground="White"
+                                    BorderThickness="0"
+                                    Style="{StaticResource ActionButtonStyle}"/>
                         </StackPanel>
                     </Border>
                 </Grid>
             </Border>
 
-            <!-- Центр: список новостей -->
-            <Border Grid.Column="1" BorderBrush="LightGray" BorderThickness="0,0,1,0">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
+            <!-- Центр: список новостей карточками -->
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Row="0" x:Name="NewsCountTextBlock" Text="Загружено новостей: 0" 
-                               Margin="10" FontWeight="Bold" FontSize="12"/>
+                <!-- Заголовок панели новостей -->
+                <Border Grid.Row="0" Background="White" 
+                        BorderBrush="#E8EDF2" BorderThickness="0,0,0,1"
+                        Padding="16,10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock x:Name="CurrentCategoryTextBlock" 
+                                       Text="Все новости" 
+                                       FontSize="16" FontWeight="Bold" Foreground="#1A1A2E"/>
+                            <TextBlock x:Name="NewsCountTextBlock" 
+                                       Text="Загрузка..." 
+                                       FontSize="11" Foreground="#90A4AE"/>
+                        </StackPanel>
+                        <ProgressBar Grid.Column="1" x:Name="ProgressBar" 
+                                     Width="120" Height="4" 
+                                     IsIndeterminate="True" 
+                                     Visibility="Collapsed"
+                                     Foreground="#2196F3" Background="#E3F2FD"/>
+                    </Grid>
+                </Border>
 
-                    <ProgressBar Grid.Row="0" x:Name="ProgressBar" Height="4" Margin="10,30,10,0" 
-                                 IsIndeterminate="True" Visibility="Collapsed"
-                                 Background="#2196F3" Foreground="#4CAF50"/>
+                <!-- Карточки новостей -->
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" 
+                              Padding="14" Background="#F4F6F9">
+                    <ItemsControl x:Name="NewsItemsControl">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource NewsCardStyle}"
+                                        MouseLeftButtonUp="NewsCard_Click"
+                                        Tag="{Binding}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
 
-                    <ListView Grid.Row="1" x:Name="NewsListView" Margin="10" 
-                              SelectionChanged="NewsListView_SelectionChanged"
-                              ScrollViewer.VerticalScrollBarVisibility="Auto">
-                        <ListView.View>
-                            <GridView>
-                                <GridViewColumn Header="Заголовок" Width="350">
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding Title}" TextWrapping="Wrap" 
-                                                       Width="340" FontWeight="SemiBold"/>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-                                <GridViewColumn Header="Источник" Width="120" DisplayMemberBinding="{Binding Source}"/>
-                                <GridViewColumn Header="Дата" Width="120" DisplayMemberBinding="{Binding FormattedDate}"/>
-                                <GridViewColumn Header="Автор" Width="150" DisplayMemberBinding="{Binding Author}"/>
-                            </GridView>
-                        </ListView.View>
-                        <ListView.ItemContainerStyle>
-                            <Style TargetType="ListViewItem">
-                                <Setter Property="Padding" Value="5"/>
-                                <Setter Property="Margin" Value="0,2"/>
-                                <Setter Property="BorderBrush" Value="#E0E0E0"/>
-                                <Setter Property="BorderThickness" Value="0,0,0,1"/>
-                            </Style>
-                        </ListView.ItemContainerStyle>
-                    </ListView>
-                </Grid>
-            </Border>
+                                        <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                            <!-- Категория и источник -->
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                                <Border Background="#E3F2FD" CornerRadius="4" Padding="6,2">
+                                                    <TextBlock Text="{Binding Category}" 
+                                                               FontSize="10" FontWeight="Bold"
+                                                               Foreground="#1565C0"/>
+                                                </Border>
+                                                <TextBlock Text=" &#x00B7; " Foreground="#BDBDBD" VerticalAlignment="Center" FontSize="12"/>
+                                                <TextBlock Text="{Binding Source}" 
+                                                           FontSize="11" Foreground="#78909C"
+                                                           VerticalAlignment="Center"/>
+                                            </StackPanel>
+
+                                            <!-- Заголовок -->
+                                            <TextBlock Text="{Binding Title}" 
+                                                       FontSize="14" FontWeight="SemiBold"
+                                                       Foreground="#1A237E"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,0,0,6"
+                                                       MaxHeight="42"
+                                                       TextTrimming="CharacterEllipsis"/>
+
+                                            <!-- Описание -->
+                                            <TextBlock Text="{Binding ShortDescription}" 
+                                                       FontSize="12" Foreground="#607D8B"
+                                                       TextWrapping="Wrap"
+                                                       MaxHeight="36"
+                                                       TextTrimming="CharacterEllipsis"/>
+
+                                            <!-- Нижняя строка: автор и дата -->
+                                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                                <TextBlock Text="&#x270D; " FontSize="11" Foreground="#90A4AE"/>
+                                                <TextBlock Text="{Binding Author}" 
+                                                           FontSize="11" Foreground="#90A4AE"
+                                                           MaxWidth="150"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text=" &#x00B7; " Foreground="#BDBDBD" FontSize="11"/>
+                                                <TextBlock Text="{Binding FormattedDate}" 
+                                                           FontSize="11" Foreground="#B0BEC5"/>
+                                            </StackPanel>
+                                        </StackPanel>
+
+                                        <!-- Изображение -->
+                                        <Border Grid.Column="1" 
+                                                Width="90" Height="70"
+                                                CornerRadius="6"
+                                                ClipToBounds="True"
+                                                VerticalAlignment="Center">
+                                            <Image x:Name="CardImage"
+                                                   Source="{Binding ImageUrl}"
+                                                   Stretch="UniformToFill"/>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
 
             <!-- Правая панель: детали новости -->
-            <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
-                <Border x:Name="ArticleDetailsPanel" Visibility="Collapsed" Margin="10" Padding="15" 
-                        Background="White" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="5">
+            <Grid Grid.Column="2" Background="#F4F6F9">
+                <!-- Заглушка когда ничего не выбрано -->
+                <StackPanel x:Name="EmptyDetailPanel" 
+                            VerticalAlignment="Center" HorizontalAlignment="Center"
+                            Visibility="Visible">
+                    <TextBlock Text="&#x1F4C4;" FontSize="48" HorizontalAlignment="Center" Opacity="0.3"/>
+                    <TextBlock Text="Выберите новость" 
+                               FontSize="14" Foreground="#B0BEC5"
+                               HorizontalAlignment="Center" Margin="0,10,0,0"/>
+                    <TextBlock Text="для просмотра деталей" 
+                               FontSize="12" Foreground="#CFD8DC"
+                               HorizontalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- Детали статьи -->
+                <ScrollViewer x:Name="ArticleScrollViewer" 
+                              VerticalScrollBarVisibility="Auto"
+                              Visibility="Collapsed">
                     <StackPanel>
-                        <TextBlock x:Name="ArticleTitleTextBlock" Text="" FontSize="18" FontWeight="Bold" 
-                                   TextWrapping="Wrap" Margin="0,0,0,10" Foreground="#333"/>
-
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                            <TextBlock x:Name="ArticleSourceTextBlock" Text="" FontSize="12" Foreground="#666"/>
-                            <TextBlock x:Name="ArticleDateTextBlock" Text="" FontSize="12" 
-                                       Margin="20,0,0,0" Foreground="#666"/>
-                        </StackPanel>
-
-                        <TextBlock x:Name="ArticleAuthorTextBlock" Text="" FontSize="12" 
-                                   Margin="0,0,0,10" Foreground="#666"/>
-
-                        <Border BorderBrush="#E0E0E0" BorderThickness="1" Margin="0,0,0,10">
-                            <Image x:Name="ArticleImage" MaxHeight="200" Stretch="Uniform" 
-                                   HorizontalAlignment="Center"/>
+                        <!-- Изображение -->
+                        <Border x:Name="ArticleImageBorder" 
+                                Height="200" 
+                                Background="#E8EDF2"
+                                Visibility="Collapsed">
+                            <Image x:Name="ArticleImage" Stretch="UniformToFill"/>
                         </Border>
 
-                        <TextBlock Text="Описание:" FontWeight="Bold" Margin="0,10,0,5"/>
-                        <TextBlock x:Name="ArticleDescriptionTextBlock" Text="" TextWrapping="Wrap" 
-                                   Margin="0,0,0,10" FontSize="14"/>
+                        <!-- Контент -->
+                        <Border Background="White" Padding="16" Margin="0,0,0,0">
+                            <StackPanel>
+                                <!-- Категория -->
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <Border x:Name="ArticleCategoryBadge" 
+                                            Background="#E3F2FD" CornerRadius="4" Padding="8,3">
+                                        <TextBlock x:Name="ArticleCategoryTextBlock"
+                                                   Text="" FontSize="11" FontWeight="Bold"
+                                                   Foreground="#1565C0"/>
+                                    </Border>
+                                </StackPanel>
 
-                        <TextBlock Text="Содержание:" FontWeight="Bold" Margin="0,10,0,5"/>
-                        <TextBlock x:Name="ArticleContentTextBlock" Text="" TextWrapping="Wrap" 
-                                   Margin="0,0,0,20" FontSize="13"/>
+                                <!-- Заголовок -->
+                                <TextBlock x:Name="ArticleTitleTextBlock" 
+                                           Text="" FontSize="17" FontWeight="Bold" 
+                                           TextWrapping="Wrap" Margin="0,0,0,12" 
+                                           Foreground="#1A237E"
+                                           LineHeight="24"/>
 
-                        <Button x:Name="OpenInBrowserButton" Content="Читать полностью" 
-                                Height="35" Click="OpenInBrowserButton_Click" Margin="0,10,0,0"
-                                Background="#2196F3" Foreground="White" FontWeight="Bold"/>
+                                <!-- Мета информация -->
+                                <Border Background="#F8F9FA" CornerRadius="6" Padding="12,8" Margin="0,0,0,12">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <StackPanel Grid.Row="0" Orientation="Horizontal">
+                                            <TextBlock Text="&#x1F3E2; " FontSize="12"/>
+                                            <TextBlock x:Name="ArticleSourceTextBlock" 
+                                                       Text="" FontSize="12" Foreground="#546E7A"
+                                                       FontWeight="SemiBold"/>
+                                            <TextBlock Text="  &#x00B7;  " Foreground="#BDBDBD" FontSize="12"/>
+                                            <TextBlock x:Name="ArticleDateTextBlock" 
+                                                       Text="" FontSize="12" Foreground="#90A4AE"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,4,0,0">
+                                            <TextBlock Text="&#x270D; " FontSize="12"/>
+                                            <TextBlock x:Name="ArticleAuthorTextBlock" 
+                                                       Text="" FontSize="12" Foreground="#78909C"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Описание -->
+                                <TextBlock Text="ОПИСАНИЕ" FontSize="10" FontWeight="Bold" 
+                                           Foreground="#90A4AE" Margin="0,0,0,6"/>
+                                <TextBlock x:Name="ArticleDescriptionTextBlock" 
+                                           Text="" TextWrapping="Wrap" 
+                                           Margin="0,0,0,14" FontSize="13" 
+                                           Foreground="#424242" LineHeight="20"/>
+
+                                <!-- Содержание -->
+                                <TextBlock Text="СОДЕРЖАНИЕ" FontSize="10" FontWeight="Bold" 
+                                           Foreground="#90A4AE" Margin="0,0,0,6"/>
+                                <TextBlock x:Name="ArticleContentTextBlock" 
+                                           Text="" TextWrapping="Wrap" 
+                                           Margin="0,0,0,16" FontSize="13" 
+                                           Foreground="#546E7A" LineHeight="20"/>
+
+                                <Button x:Name="OpenInBrowserButton" 
+                                        Content="&#x1F517; Читать полностью" 
+                                        Height="38"
+                                        Click="OpenInBrowserButton_Click"
+                                        Background="#1565C0" Foreground="White"
+                                        BorderThickness="0"
+                                        FontWeight="Bold" FontSize="13"
+                                        Style="{StaticResource ActionButtonStyle}"/>
+                            </StackPanel>
+                        </Border>
 
                         <!-- Комментарии -->
-                        <Border BorderBrush="LightGray" BorderThickness="0,1,0,0" Margin="0,20,0,0" Padding="0,10,0,0">
+                        <Border Background="White" Padding="16" Margin="0,8,0,0">
                             <StackPanel>
-                                <TextBlock Text="Комментарии" FontWeight="Bold" Margin="0,0,0,5"/>
-                                <TextBox x:Name="CommentTextBox" Height="80" TextWrapping="Wrap" 
-                                         AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
-                                         Padding="5" BorderBrush="#E0E0E0"/>
-                                <Button x:Name="AddCommentButton" Content="Добавить комментарий" 
-                                        Height="30" Margin="0,5,0,0" Click="AddCommentButton_Click"
-                                        Background="#4CAF50" Foreground="White"/>
+                                <TextBlock Text="КОММЕНТАРИИ" FontSize="10" FontWeight="Bold" 
+                                           Foreground="#90A4AE" Margin="0,0,0,10"/>
+                                <Border BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="8">
+                                    <TextBox x:Name="CommentTextBox" 
+                                             Height="80" TextWrapping="Wrap" 
+                                             AcceptsReturn="True" 
+                                             VerticalScrollBarVisibility="Auto"
+                                             Padding="10"
+                                             BorderThickness="0"
+                                             FontSize="13"
+                                             Foreground="#424242"/>
+                                </Border>
+                                <Button x:Name="AddCommentButton" 
+                                        Content="Добавить комментарий" 
+                                        Height="34" Margin="0,8,0,0" 
+                                        Click="AddCommentButton_Click"
+                                        Background="#4CAF50" Foreground="White"
+                                        BorderThickness="0"
+                                        Style="{StaticResource ActionButtonStyle}"/>
                             </StackPanel>
                         </Border>
                     </StackPanel>
-                </Border>
-            </ScrollViewer>
+                </ScrollViewer>
+            </Grid>
         </Grid>
 
         <!-- Нижняя панель -->
-        <StatusBar Grid.Row="2" Background="#F5F5F5" BorderBrush="#E0E0E0" BorderThickness="0,1,0,0">
+        <StatusBar Grid.Row="2" Background="White" 
+                   BorderBrush="#E8EDF2" BorderThickness="0,1,0,0"
+                   Height="28">
             <StatusBarItem>
-                <TextBlock x:Name="StatusTextBlock" Text="Готово" FontSize="11"/>
+                <TextBlock x:Name="StatusTextBlock" Text="Готово" FontSize="11" Foreground="#78909C"/>
             </StatusBarItem>
             <StatusBarItem HorizontalAlignment="Right">
-                <TextBlock Text="Новостной портал v1.0" FontSize="11" Foreground="#666"/>
+                <TextBlock Text="Новостной портал v1.0" FontSize="11" Foreground="#B0BEC5"/>
             </StatusBarItem>
         </StatusBar>
     </Grid>

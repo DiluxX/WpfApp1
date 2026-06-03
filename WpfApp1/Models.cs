@@ -1,9 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
 
 namespace WpfApp1
 {
-    // Основная модель новости для приложения
+    // Основная модель новости — используется везде в приложении
     public class NewsArticle
     {
         public string Title { get; set; }
@@ -21,7 +20,9 @@ namespace WpfApp1
             get
             {
                 if (string.IsNullOrEmpty(Description)) return "";
-                return Description.Length > 100 ? Description.Substring(0, 100) + "..." : Description;
+                return Description.Length > 120
+                    ? Description.Substring(0, 120) + "..."
+                    : Description;
             }
         }
 
@@ -31,26 +32,7 @@ namespace WpfApp1
         }
     }
 
-    // Модели для NewsAPI
-    public class NewsApiResponse
-    {
-        public string Status { get; set; }
-        public int TotalResults { get; set; }
-        public List<ApiArticle> Articles { get; set; }
-    }
-
-    public class ApiArticle
-    {
-        public ApiSource Source { get; set; }
-        public string Author { get; set; }
-        public string Title { get; set; }
-        public string Description { get; set; }
-        public string Url { get; set; }
-        public string UrlToImage { get; set; }
-        public string PublishedAt { get; set; }
-        public string Content { get; set; }
-    }
-
+    // Профиль пользователя
     public class UserProfile
     {
         public int UserId { get; set; }
@@ -65,7 +47,7 @@ namespace WpfApp1
         public DateTime UpdatedAt { get; set; }
     }
 
-    // Модель для обновления профиля
+    // Запрос на обновление профиля
     public class UpdateProfileRequest
     {
         public string DisplayName { get; set; }
@@ -73,11 +55,5 @@ namespace WpfApp1
         public string AvatarUrl { get; set; }
         public string CurrentPassword { get; set; }
         public string NewPassword { get; set; }
-    }
-
-    public class ApiSource
-    {
-        public string Id { get; set; }
-        public string Name { get; set; }
     }
 }

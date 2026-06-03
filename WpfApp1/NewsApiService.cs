@@ -1,377 +1,330 @@
 ﻿using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
-using WpfApp1;
 
 namespace WpfApp1
 {
+    // ═══════════════════════════════════════════════════════
+    //  Единый сервис новостей (NewsAPI.org)
+    //  API key: bcfe5ae4a7b69625891553c25a3b9938
+    //
+    //  Удалите из проекта:
+    //    - AlternativeNewsService.cs   (заменён этим файлом)
+    //
+    //  Models.cs оставьте — там только NewsArticle, UserProfile,
+    //  UpdateProfileRequest (без каких-либо API-моделей).
+    // ═══════════════════════════════════════════════════════
+
     public class NewsApiService
     {
-        private readonly HttpClient _httpClient;
-        private const string ApiKey = "a302a226787c408e9a4c00596f19fc17";
-
-        // Используем CORS прокси или другой домен
+        private readonly HttpClient _http;
+        private const string ApiKey = "bcfe5ae4a7b69625891553c25a3b9938";
         private const string BaseUrl = "https://newsapi.org/v2/";
 
-        // Альтернативный подход - использовать HTTPS
-        private bool _useDirectApi = true;
+        // Русская категория → параметр NewsAPI
+        private static readonly Dictionary<string, string> CategoryMap =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Политика"] = "general",
+                ["Технологии"] = "technology",
+                ["Спорт"] = "sports",
+                ["Бизнес"] = "business",
+                ["Здоровье"] = "health",
+                ["Наука"] = "science",
+                ["Культура"] = "entertainment",
+                ["Развлечения"] = "entertainment",
+            };
+
+        // Параметр NewsAPI → русская категория
+        private static readonly Dictionary<string, string> ApiCatToRu =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["general"] = "Политика",
+                ["technology"] = "Технологии",
+                ["sports"] = "Спорт",
+                ["business"] = "Бизнес",
+                ["health"] = "Здоровье",
+                ["science"] = "Наука",
+                ["entertainment"] = "Культура",
+            };
+
+        private static readonly string[] AllApiCats =
+            { "general", "technology", "sports", "business", "health", "science", "entertainment" };
 
         public NewsApiService()
         {
             var handler = new HttpClientHandler
             {
                 UseProxy = false,
-                ServerCertificateCustomValidationCallback = (sender, cert, chain, sslPolicyErrors) => true
+                ServerCertificateCustomValidationCallback = (s, c, ch, e) => true
             };
 
-            _httpClient = new HttpClient(handler);
-            _httpClient.Timeout = TimeSpan.FromSeconds(30);
-
-            // Добавляем заголовки для обхода ограничений
-            _httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
-            _httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
-            _httpClient.DefaultRequestHeaders.Add("X-Api-Key", ApiKey);
+            _http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(20) };
+            _http.DefaultRequestHeaders.Add("User-Agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+            _http.DefaultRequestHeaders.Add("Accept", "application/json");
+            _http.DefaultRequestHeaders.Add("X-Api-Key", ApiKey);
         }
 
-        public async Task<List<NewsArticle>> GetTopHeadlinesAsync(string country = "ru", string category = null, int pageSize = 20)
+        // ── Публичный API ──────────────────────────────────────────────────
+
+        /// <summary>
+        /// Загрузить новости. categoryRu = null / "Все новости" → все категории параллельно.
+        /// </summary>
+        public async Task<List<NewsArticle>> GetTopHeadlinesAsync(
+            string country = "ru", string categoryRu = null, int pageSize = 20)
+        {
+            if (string.IsNullOrEmpty(categoryRu) || categoryRu == "Все новости")
+                return await FetchAllCategoriesAsync(pageSize);
+
+            string apiCat = CategoryMap.ContainsKey(categoryRu) ? CategoryMap[categoryRu] : "general";
+            return await FetchCategoryAsync(apiCat, categoryRu, pageSize);
+        }
+
+        /// <summary>
+        /// Полнотекстовый поиск через /everything. При недоступности API — фильтрует fallback.
+        /// </summary>
+        public async Task<List<NewsArticle>> SearchNewsAsync(
+            string query, string language = "ru", int pageSize = 30)
         {
             try
             {
-                if (_useDirectApi)
-                {
-                    // Попытка 1: Прямой запрос к API
-                    return await GetNewsDirect(country, category, pageSize);
-                }
+                string url = $"{BaseUrl}everything" +
+                             $"?q={Uri.EscapeDataString(query)}" +
+                             $"&language={language}" +
+                             $"&pageSize={pageSize}" +
+                             $"&sortBy=publishedAt";
 
-                // Попытка 2: Локальные данные
-                return GetLocalNews(country, category, pageSize);
+                var result = await FetchArticlesAsync(url, "Новости");
+                if (result.Count > 0) return result;
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"API Error: {ex.Message}");
-                return GetLocalNews(country, category, pageSize);
-            }
+            catch { /* fallback */ }
+
+            string q = query.ToLowerInvariant();
+            return BuildFallbackNews(100).Where(a =>
+                (a.Title ?? "").ToLowerInvariant().Contains(q) ||
+                (a.Description ?? "").ToLowerInvariant().Contains(q) ||
+                (a.Source ?? "").ToLowerInvariant().Contains(q)
+            ).ToList();
         }
 
-        private async Task<List<NewsArticle>> GetNewsDirect(string country, string category, int pageSize)
+        // ── Внутренние методы ──────────────────────────────────────────────
+
+        private async Task<List<NewsArticle>> FetchAllCategoriesAsync(int totalSize)
+        {
+            int perCat = Math.Max(3, totalSize / AllApiCats.Length);
+            var tasks = AllApiCats
+                .Select(cat => FetchCategoryAsync(cat, ApiCatToRu[cat], perCat))
+                .ToList();
+
+            try
+            {
+                var results = await Task.WhenAll(tasks);
+                var all = results.SelectMany(r => r).ToList();
+                if (all.Count > 0)
+                    return all.OrderByDescending(a => a.PublishedAt).ToList();
+            }
+            catch { /* fallback */ }
+
+            return BuildFallbackNews(totalSize);
+        }
+
+        private async Task<List<NewsArticle>> FetchCategoryAsync(
+            string apiCat, string ruCat, int pageSize)
+        {
+            // Попытка 1: top-headlines?country=ru
+            string url1 = $"{BaseUrl}top-headlines?country=ru&category={apiCat}&pageSize={pageSize}";
+            var articles = await FetchArticlesAsync(url1, ruCat);
+            if (articles.Count > 0) return articles;
+
+            // Попытка 2: everything?language=ru (без country — больше результатов)
+            string url2 = $"{BaseUrl}everything" +
+                          $"?q={Uri.EscapeDataString(CatToQuery(apiCat))}" +
+                          $"&language=ru&pageSize={pageSize}&sortBy=publishedAt";
+            articles = await FetchArticlesAsync(url2, ruCat);
+            if (articles.Count > 0) return articles;
+
+            return BuildFallbackNews(pageSize, ruCat);
+        }
+
+        private async Task<List<NewsArticle>> FetchArticlesAsync(string url, string defaultCategory)
         {
             try
             {
-                // Пробуем разные форматы запросов
-                string url;
+                var req = new HttpRequestMessage(HttpMethod.Get, url);
+                var resp = await _http.SendAsync(req);
+                if (!resp.IsSuccessStatusCode) return new List<NewsArticle>();
 
-                if (string.IsNullOrEmpty(category) || category == "Все новости")
-                {
-                    url = $"https://newsapi.org/v2/top-headlines?country={country}&pageSize={pageSize}";
-                }
-                else
-                {
-                    string apiCategory = MapCategoryToApi(category);
-                    url = $"https://newsapi.org/v2/top-headlines?country={country}&category={apiCategory}&pageSize={pageSize}";
-                }
+                var json = await resp.Content.ReadAsStringAsync();
+                var data = JsonConvert.DeserializeObject<GnApiResponse>(json);
 
-                Console.WriteLine($"Request URL: {url}");
+                if (data?.Status != "ok" || data.Articles == null || data.Articles.Count == 0)
+                    return new List<NewsArticle>();
 
-                // Используем заголовок вместо параметра в URL
-                var request = new HttpRequestMessage(HttpMethod.Get, url);
-                request.Headers.Add("X-Api-Key", ApiKey);
-
-                var response = await _httpClient.SendAsync(request);
-
-                if (response.IsSuccessStatusCode)
-                {
-                    var json = await response.Content.ReadAsStringAsync();
-                    var newsResponse = JsonConvert.DeserializeObject<NewsApiDirectResponse>(json);
-
-                    if (newsResponse?.Status == "ok" && newsResponse.Articles != null)
-                    {
-                        return MapToArticles(newsResponse.Articles);
-                    }
-                }
-
-                // Если не получилось, пробуем другой подход
-                return await GetNewsFallback(country, category, pageSize);
+                return data.Articles
+                    .Where(a => !string.IsNullOrEmpty(a.Title) && a.Title != "[Removed]")
+                    .Select(a => MapToArticle(a, defaultCategory))
+                    .ToList();
             }
             catch
             {
-                // В случае ошибки возвращаем локальные данные
-                return GetLocalNews(country, category, pageSize);
+                return new List<NewsArticle>();
             }
         }
 
-        private async Task<List<NewsArticle>> GetNewsFallback(string country, string category, int pageSize)
+        private static NewsArticle MapToArticle(GnArticle a, string defaultCategory)
         {
-            // Попробуем через другой endpoint или подход
-            try
+            DateTime.TryParse(a.PublishedAt, out DateTime pub);
+            if (pub == default) pub = DateTime.Now;
+
+            return new NewsArticle
             {
-                string url = $"https://newsapi.org/v2/everything?q={MapCategoryToQuery(category)}&language=ru&pageSize={pageSize}&sortBy=publishedAt";
-
-                var request = new HttpRequestMessage(HttpMethod.Get, url);
-                request.Headers.Add("X-Api-Key", ApiKey);
-
-                var response = await _httpClient.SendAsync(request);
-
-                if (response.IsSuccessStatusCode)
-                {
-                    var json = await response.Content.ReadAsStringAsync();
-                    var newsResponse = JsonConvert.DeserializeObject<NewsApiDirectResponse>(json);
-
-                    if (newsResponse?.Status == "ok" && newsResponse.Articles != null)
-                    {
-                        return MapToArticles(newsResponse.Articles);
-                    }
-                }
-            }
-            catch
-            {
-                // Игнорируем ошибку
-            }
-
-            return GetLocalNews(country, category, pageSize);
+                Title = a.Title?.Trim(),
+                Description = a.Description?.Trim(),
+                Content = StripSuffix(a.Content),
+                Url = a.Url,
+                ImageUrl = a.UrlToImage,
+                PublishedAt = pub,
+                Source = a.Source?.Name ?? "Неизвестно",
+                Author = string.IsNullOrWhiteSpace(a.Author) ? "Автор не указан" : a.Author,
+                Category = defaultCategory
+            };
         }
 
-        private List<NewsArticle> GetLocalNews(string country, string category, int pageSize)
+        // NewsAPI обрезает content — убираем "[+N chars]"
+        private static string StripSuffix(string s)
         {
-            // Генерируем реалистичные тестовые данные
-            var random = new Random();
-            var articles = new List<NewsArticle>();
+            if (string.IsNullOrEmpty(s)) return "";
+            int i = s.IndexOf(" [+", StringComparison.Ordinal);
+            return i > 0 ? s.Substring(0, i) : s;
+        }
 
-            string[] categories = { "Политика", "Технологии", "Спорт", "Бизнес", "Здоровье", "Наука", "Культура" };
-            string[] sources = { "РИА Новости", "ТАСС", "Интерфакс", "BBC News", "Reuters", "Forbes", "Meduza", "РБК" };
-            string[] authors = { "Иван Иванов", "Анна Петрова", "Сергей Сидоров", "Мария Кузнецова", "Алексей Смирнов" };
-
-            // Если выбрана конкретная категория, используем ее
-            if (!string.IsNullOrEmpty(category) && category != "Все новости")
+        private static string CatToQuery(string apiCat)
+        {
+            switch (apiCat)
             {
-                categories = new[] { category };
+                case "technology": return "технологии OR IT OR искусственный интеллект";
+                case "sports": return "спорт OR футбол OR хоккей OR теннис";
+                case "business": return "бизнес OR экономика OR финансы OR рынок";
+                case "health": return "здоровье OR медицина OR лечение OR вакцина";
+                case "science": return "наука OR исследование OR открытие OR космос";
+                case "entertainment": return "культура OR кино OR музыка OR искусство";
+                default: return "политика OR Россия OR правительство";
             }
+        }
 
-            for (int i = 0; i < pageSize; i++)
+        // ── Fallback-данные (только если API полностью недоступен) ─────────
+
+        private static readonly string[] FbCats =
+            { "Политика", "Технологии", "Спорт", "Бизнес", "Здоровье", "Наука", "Культура" };
+
+        private static readonly string[] FbSources =
+            { "РИА Новости", "ТАСС", "Интерфакс", "BBC", "Reuters", "Forbes", "РБК" };
+
+        private static readonly string[] FbAuthors =
+            { "Иван Иванов", "Анна Петрова", "Сергей Сидоров", "Мария Кузнецова", "Алексей Смирнов" };
+
+        private static readonly Dictionary<string, string[]> FbTitles =
+            new Dictionary<string, string[]>
             {
-                string currentCategory = categories[random.Next(categories.Length)];
-                string currentSource = sources[random.Next(sources.Length)];
-                string currentAuthor = authors[random.Next(authors.Length)];
-                DateTime publishDate = DateTime.Now.AddHours(-random.Next(1, 168)); // До 7 дней назад
+                ["Политика"] = new[] { "Международный саммит прошёл в Москве", "Парламент принял важные поправки", "Президент выступил с обращением к нации", "Новые законы вступают в силу" },
+                ["Технологии"] = new[] { "Новый смартфон побил рекорды продаж", "ИИ создал картину стоимостью миллион", "Кибербезопасность: новые угрозы", "Квантовый компьютер поставил рекорд" },
+                ["Спорт"] = new[] { "Сборная вышла в финал чемпионата", "Новый рекорд в лёгкой атлетике", "Трансфер года: сделка на миллиард", "Олимпийские игры: итоги дня" },
+                ["Бизнес"] = new[] { "Фондовый рынок показывает рост", "Крупная компания объявила о слиянии", "Нефть дорожает третий день подряд", "Стартап привлёк $500 млн инвестиций" },
+                ["Здоровье"] = new[] { "Учёные нашли новый метод лечения", "ВОЗ предупреждает о новом вирусе", "Здоровый образ жизни продлевает жизнь", "Новая вакцина прошла испытания" },
+                ["Наука"] = new[] { "Открыта новая планета у соседней звезды", "Физики доказали существование частицы", "Биологи расшифровали геном динозавра", "Марс: новые находки ровера" },
+                ["Культура"] = new[] { "Новый фильм собрал $200 млн за выходные", "Концерт года: аншлаг в Москве", "Выставка открылась в Эрмитаже", "Букеровская премия объявила победителя" },
+            };
 
-                articles.Add(new NewsArticle
+        private List<NewsArticle> BuildFallbackNews(int count, string category = null)
+        {
+            var rng = new Random();
+            var cats = category != null ? new[] { category } : FbCats;
+            var list = new List<NewsArticle>();
+
+            for (int i = 0; i < count; i++)
+            {
+                string cat = cats[i % cats.Length];
+                string source = FbSources[rng.Next(FbSources.Length)];
+                string author = FbAuthors[rng.Next(FbAuthors.Length)];
+                string[] titles = FbTitles.ContainsKey(cat) ? FbTitles[cat] : FbTitles["Политика"];
+                string title = titles[i % titles.Length];
+
+                list.Add(new NewsArticle
                 {
-                    Title = GenerateTitle(currentCategory, i),
-                    Description = GenerateDescription(currentCategory),
-                    Content = GenerateContent(currentCategory),
+                    Title = title,
+                    Description = $"Подробности события в категории «{cat}». Следите за обновлениями.",
+                    Content = $"Редакция {source} сообщает: {title.ToLower()}. " +
+                                  "Эксперты дают комментарии, аналитики следят за развитием событий. " +
+                                  "Подробный репортаж читайте на сайте издания.",
+                    Source = source,
+                    Author = author,
+                    Category = cat,
+                    PublishedAt = DateTime.Now.AddHours(-rng.Next(1, 120)),
                     Url = $"https://example.com/news/{Guid.NewGuid()}",
-                    ImageUrl = GetRandomImageUrl(i),
-                    PublishedAt = publishDate,
-                    Source = currentSource,
-                    Author = currentAuthor,
-                    Category = currentCategory
+                    ImageUrl = $"https://picsum.photos/seed/{cat}{i}/300/200",
                 });
             }
 
-            return articles;
-        }
-
-        private string MapCategoryToApi(string category)
-        {
-            var mapping = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["политика"] = "general",
-                ["технологии"] = "technology",
-                ["спорт"] = "sports",
-                ["бизнес"] = "business",
-                ["здоровье"] = "health",
-                ["наука"] = "science",
-                ["культура"] = "entertainment",
-                ["развлечения"] = "entertainment"
-            };
-
-            return mapping.ContainsKey(category) ? mapping[category] : "general";
-        }
-
-        private string MapCategoryToQuery(string category)
-        {
-            var mapping = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["политика"] = "политика OR политик OR государство",
-                ["технологии"] = "технологии OR IT OR программирование",
-                ["спорт"] = "спорт OR футбол OR хоккей",
-                ["бизнес"] = "бизнес OR экономика OR финансы",
-                ["здоровье"] = "здоровье OR медицина OR лечение",
-                ["наука"] = "наука OR исследование OR открытие",
-                ["культура"] = "культура OR искусство OR кино",
-                ["развлечения"] = "развлечения OR музыка OR шоу"
-            };
-
-            return mapping.ContainsKey(category) ? mapping[category] : "новости";
-        }
-
-        private List<NewsArticle> MapToArticles(List<DirectArticle> apiArticles)
-        {
-            var articles = new List<NewsArticle>();
-
-            foreach (var apiArticle in apiArticles)
-            {
-                if (string.IsNullOrEmpty(apiArticle.Title) || apiArticle.Title == "[Removed]")
-                    continue;
-
-                DateTime publishedDate;
-                if (!DateTime.TryParse(apiArticle.PublishedAt, out publishedDate))
-                {
-                    publishedDate = DateTime.Now;
-                }
-
-                articles.Add(new NewsArticle
-                {
-                    Title = apiArticle.Title,
-                    Description = apiArticle.Description,
-                    Content = apiArticle.Content,
-                    Url = apiArticle.Url,
-                    ImageUrl = apiArticle.UrlToImage,
-                    PublishedAt = publishedDate,
-                    Source = apiArticle.Source?.Name ?? "Неизвестно",
-                    Author = apiArticle.Author ?? "Автор не указан",
-                    Category = "Новости"
-                });
-            }
-
-            return articles;
-        }
-
-        private string GenerateTitle(string category, int index)
-        {
-            var titles = new Dictionary<string, string[]>
-            {
-                ["Политика"] = new[]
-                {
-                    "Новые законы вступают в силу с нового года",
-                    "Международный саммит прошел в Москве",
-                    "Парламент принял важные поправки",
-                    "Президент выступил с обращением к нации"
-                },
-                ["Технологии"] = new[]
-                {
-                    "Новый смартфон побил рекорды продаж",
-                    "Искусственный интеллект создал картину",
-                    "Кибербезопасность: новые угрозы",
-                    "Роботы заменяют людей на производствах"
-                },
-                ["Спорт"] = new[]
-                {
-                    "Футбольный матч завершился со счетом 3:2",
-                    "Новый рекорд в легкой атлетике",
-                    "Сборная страны готовится к чемпионату",
-                    "Спортсмен года: итоги голосования"
-                },
-                ["Бизнес"] = new[]
-                {
-                    "Фондовый рынок показывает рост",
-                    "Крупная компания объявила о слиянии",
-                    "Новые инвестиции в экономику",
-                    "Курс доллара стабилизировался"
-                }
-            };
-
-            var categoryTitles = titles.ContainsKey(category)
-                ? titles[category]
-                : new[] { "Важная новость", "Свежая информация", "Актуальный репортаж" };
-
-            return categoryTitles[index % categoryTitles.Length];
-        }
-
-        private string GenerateDescription(string category)
-        {
-            return $"Актуальные новости в категории {category}. Подробности в полном тексте статьи.";
-        }
-
-        private string GenerateContent(string category)
-        {
-            return $"Это полный текст новости в категории {category}. Здесь содержится подробная информация о событии. " +
-                   $"Новость была подготовлена редакцией и проверена факт-чекерами. " +
-                   $"Следите за обновлениями для получения дополнительной информации.";
-        }
-
-        private string GetRandomImageUrl(int index)
-        {
-            var images = new[]
-            {
-                "https://images.unsplash.com/photo-1588681664899-f142ff2dc9b1?w=300&h=200&fit=crop",
-                "https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=300&h=200&fit=crop",
-                "https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=300&h=200&fit=crop",
-                "https://images.unsplash.com/photo-1495020689067-958852a7765e?w=300&h=200&fit=crop",
-                "https://via.placeholder.com/300x200/2196F3/FFFFFF?text=News",
-                "https://via.placeholder.com/300x200/4CAF50/FFFFFF?text=Sport",
-                "https://via.placeholder.com/300x200/FF9800/FFFFFF?text=Tech",
-                "https://via.placeholder.com/300x200/9C27B0/FFFFFF?text=Business"
-            };
-
-            return images[index % images.Length];
-        }
-
-        public async Task<List<NewsArticle>> SearchNewsAsync(string query, string language = "ru", int pageSize = 20)
-        {
-            try
-            {
-                string url = $"https://newsapi.org/v2/everything?q={Uri.EscapeDataString(query)}&language={language}&pageSize={pageSize}&sortBy=publishedAt";
-
-                var request = new HttpRequestMessage(HttpMethod.Get, url);
-                request.Headers.Add("X-Api-Key", ApiKey);
-
-                var response = await _httpClient.SendAsync(request);
-
-                if (response.IsSuccessStatusCode)
-                {
-                    var json = await response.Content.ReadAsStringAsync();
-                    var newsResponse = JsonConvert.DeserializeObject<NewsApiDirectResponse>(json);
-
-                    if (newsResponse?.Status == "ok")
-                    {
-                        return MapToArticles(newsResponse.Articles);
-                    }
-                }
-            }
-            catch
-            {
-                // Игнорируем ошибку
-            }
-
-            // Фильтруем локальные данные по запросу
-            var localNews = GetLocalNews("ru", null, 50);
-            return localNews.FindAll(a =>
-                (a.Title?.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0) ||
-                (a.Description?.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0));
-        }
-
-        public async Task<List<NewsArticle>> GetNewsByCategoryAsync(string category, int pageSize = 20)
-        {
-            return await GetTopHeadlinesAsync("ru", category, pageSize);
+            return list;
         }
     }
 
-    // Модели для прямого API
-    public class NewsApiDirectResponse
+    // ── Внутренние JSON-модели (только для этого файла) ───────────────────
+    // Названия намеренно уникальны (Gn-префикс), чтобы не конфликтовать
+    // с классами в Models.cs или других файлах проекта.
+
+    internal class GnApiResponse
     {
+        [JsonProperty("status")]
         public string Status { get; set; }
+
+        [JsonProperty("totalResults")]
         public int TotalResults { get; set; }
-        public List<DirectArticle> Articles { get; set; }
+
+        [JsonProperty("articles")]
+        public List<GnArticle> Articles { get; set; }
+
+        [JsonProperty("message")]
         public string Message { get; set; }
     }
 
-    public class DirectArticle
+    internal class GnArticle
     {
-        public DirectSource Source { get; set; }
+        [JsonProperty("source")]
+        public GnSource Source { get; set; }
+
+        [JsonProperty("author")]
         public string Author { get; set; }
+
+        [JsonProperty("title")]
         public string Title { get; set; }
+
+        [JsonProperty("description")]
         public string Description { get; set; }
+
+        [JsonProperty("url")]
         public string Url { get; set; }
+
+        [JsonProperty("urlToImage")]
         public string UrlToImage { get; set; }
+
+        [JsonProperty("publishedAt")]
         public string PublishedAt { get; set; }
+
+        [JsonProperty("content")]
         public string Content { get; set; }
     }
 
-    public class DirectSource
+    internal class GnSource
     {
+        [JsonProperty("id")]
         public string Id { get; set; }
+
+        [JsonProperty("name")]
         public string Name { get; set; }
     }
 }
