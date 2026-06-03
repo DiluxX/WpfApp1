@@ -1,0 +1,286 @@
+﻿<Window x:Class="WpfApp1.ProfileWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Мой профиль" 
+        Height="700" 
+        Width="600"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize">
+
+    <Grid Background="#F5F5F5">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Заголовок -->
+        <Border Grid.Row="0" Background="#2196F3" Padding="15">
+            <TextBlock Text="Мой профиль" 
+                       Foreground="White" 
+                       FontSize="24" 
+                       FontWeight="Bold"
+                       HorizontalAlignment="Center"/>
+        </Border>
+
+        <!-- Основное содержание -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="20">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- Аватар -->
+                <Border Grid.Row="0" 
+                        Width="150" 
+                        Height="150" 
+                        CornerRadius="5"
+                        BorderBrush="#2196F3" 
+                        BorderThickness="3"
+                        HorizontalAlignment="Center"
+                        Margin="0,0,0,20"
+                        MouseEnter="AvatarBorder_MouseEnter"
+                        MouseLeave="AvatarBorder_MouseLeave">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition/>
+                            <RowDefinition Height="11*"/>
+                        </Grid.RowDefinitions>
+                        <Image x:Name="AvatarImage" 
+                               Stretch="UniformToFill" Grid.RowSpan="2"/>
+                        <Border x:Name="AvatarOverlay"
+                                Background="#80000000" 
+                                CornerRadius="15"
+                                Visibility="Hidden" Grid.RowSpan="2">
+                            <TextBlock Text="Изменить" 
+                                       Foreground="White"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"/>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <!-- Кнопки управления аватаром -->
+                <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,20">
+                    <Button x:Name="ChangeAvatarButton" 
+                            Content="Изменить фото" 
+                            Width="120" 
+                            Height="30"
+                            Margin="5"
+                            Click="ChangeAvatarButton_Click"/>
+                    <Button x:Name="RemoveAvatarButton" 
+                            Content="Удалить фото" 
+                            Width="120" 
+                            Height="30"
+                            Margin="5"
+                            Click="RemoveAvatarButton_Click"/>
+                </StackPanel>
+
+                <!-- Основная информация -->
+                <Border Grid.Row="2" 
+                        Background="White" 
+                        CornerRadius="10" 
+                        Padding="20" 
+                        Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="Основная информация" 
+                                   FontSize="16" 
+                                   FontWeight="Bold" 
+                                   Margin="0,0,0,15"/>
+
+                        <!-- Имя пользователя (нельзя менять) -->
+                        <StackPanel Margin="0,0,0,10">
+                            <TextBlock Text="Имя пользователя:" 
+                                       Margin="0,0,0,5"/>
+                            <TextBox x:Name="UsernameTextBox" 
+                                     IsEnabled="False"
+                                     Background="#F5F5F5"
+                                     Height="30"/>
+                        </StackPanel>
+
+                        <!-- Отображаемое имя -->
+                        <StackPanel Margin="0,0,0,10">
+                            <TextBlock Text="Отображаемое имя:" 
+                                       Margin="0,0,0,5"/>
+                            <TextBox x:Name="DisplayNameTextBox" 
+                                     Height="30"
+                                     MaxLength="100"
+                                     TextChanged="DisplayNameTextBox_TextChanged"/>
+                        </StackPanel>
+
+                        <!-- Email -->
+                        <StackPanel Margin="0,0,0,10">
+                            <TextBlock Text="Email:" 
+                                       Margin="0,0,0,5"/>
+                            <TextBox x:Name="EmailTextBox" 
+                                     Height="30"
+                                     MaxLength="255"
+                                     TextChanged="EmailTextBox_TextChanged"/>
+                        </StackPanel>
+
+                        <!-- Роль -->
+                        <StackPanel Margin="0,0,0,10">
+                            <TextBlock Text="Роль:" 
+                                       Margin="0,0,0,5"/>
+                            <TextBlock x:Name="RoleTextBlock" 
+                                       FontWeight="Bold"
+                                       Foreground="#2196F3"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- О себе -->
+                <Border Grid.Row="3" 
+                        Background="White" 
+                        CornerRadius="10" 
+                        Padding="20" 
+                        Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="О себе" 
+                                   FontSize="16" 
+                                   FontWeight="Bold" 
+                                   Margin="0,0,0,15"/>
+
+                        <TextBox x:Name="BioTextBox" 
+                                 Height="100" 
+                                 TextWrapping="Wrap" 
+                                 AcceptsReturn="True"
+                                 VerticalScrollBarVisibility="Auto"
+                                 MaxLength="500"/>
+                        <TextBlock Text="{Binding ElementName=BioTextBox, Path=Text.Length, StringFormat={}{0}/500}" 
+                                   HorizontalAlignment="Right" 
+                                   Foreground="Gray" 
+                                   FontSize="10"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Смена пароля -->
+                <Border Grid.Row="4" 
+                        Background="White" 
+                        CornerRadius="10" 
+                        Padding="20" 
+                        Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="Смена пароля" 
+                                   FontSize="16" 
+                                   FontWeight="Bold" 
+                                   Margin="0,0,0,15"/>
+
+                        <StackPanel Margin="0,0,0,10">
+                            <TextBlock Text="Текущий пароль:" 
+                                       Margin="0,0,0,5"/>
+                            <PasswordBox x:Name="CurrentPasswordBox" 
+                                         Height="30"
+                                         PasswordChanged="PasswordBox_PasswordChanged"/>
+                        </StackPanel>
+
+                        <StackPanel Margin="0,0,0,10">
+                            <TextBlock Text="Новый пароль:" 
+                                       Margin="0,0,0,5"/>
+                            <PasswordBox x:Name="NewPasswordBox" 
+                                         Height="30"
+                                         PasswordChanged="PasswordBox_PasswordChanged"/>
+                        </StackPanel>
+
+                        <StackPanel Margin="0,0,0,10">
+                            <TextBlock Text="Повторите новый пароль:" 
+                                       Margin="0,0,0,5"/>
+                            <PasswordBox x:Name="ConfirmPasswordBox" 
+                                         Height="30"
+                                         PasswordChanged="PasswordBox_PasswordChanged"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Статистика -->
+                <Border Grid.Row="5" 
+                        Background="White" 
+                        CornerRadius="10" 
+                        Padding="20" 
+                        Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="Статистика" 
+                                   FontSize="16" 
+                                   FontWeight="Bold" 
+                                   Margin="0,0,0,15"/>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Дата регистрации:" 
+                                           Foreground="Gray"/>
+                                <TextBlock x:Name="CreatedAtTextBlock" 
+                                           FontWeight="Bold"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="Последний вход:" 
+                                           Foreground="Gray"/>
+                                <TextBlock x:Name="LastLoginTextBlock" 
+                                           FontWeight="Bold"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Сообщение об ошибке -->
+                <Border Grid.Row="6" 
+                        x:Name="ErrorBorder" 
+                        Background="#FFEBEE" 
+                        CornerRadius="5" 
+                        Padding="10" 
+                        Margin="0,0,0,10"
+                        Visibility="Collapsed">
+                    <TextBlock x:Name="ErrorTextBlock" 
+                               Foreground="#D32F2F" 
+                               TextWrapping="Wrap"/>
+                </Border>
+            </Grid>
+        </ScrollViewer>
+
+        <!-- Кнопки -->
+        <Border Grid.Row="2" 
+                Background="White" 
+                BorderBrush="#E0E0E0" 
+                BorderThickness="0,1,0,0" 
+                Padding="20">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Button x:Name="CancelButton" 
+                        Grid.Column="1" 
+                        Content="Отмена" 
+                        Width="100" 
+                        Height="35"
+                        Margin="0,0,10,0"
+                        Click="CancelButton_Click"/>
+
+                <Button x:Name="SaveButton" 
+                        Grid.Column="2" 
+                        Content="Сохранить" 
+                        Width="100" 
+                        Height="35"
+                        Background="#2196F3"
+                        Foreground="White"
+                        Click="SaveButton_Click"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
