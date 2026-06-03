@@ -6,17 +6,7 @@ using System.Net.Http;
 using System.Threading.Tasks;
 
 namespace WpfApp1
-{
-    // ═══════════════════════════════════════════════════════
-    //  Единый сервис новостей (NewsAPI.org)
-    //  API key: bcfe5ae4a7b69625891553c25a3b9938
-    //
-    //  Удалите из проекта:
-    //    - AlternativeNewsService.cs   (заменён этим файлом)
-    //
-    //  Models.cs оставьте — там только NewsArticle, UserProfile,
-    //  UpdateProfileRequest (без каких-либо API-моделей).
-    // ═══════════════════════════════════════════════════════
+
 
     public class NewsApiService
     {
