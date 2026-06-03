@@ -268,6 +268,7 @@ namespace WpfApp1
             RegionDetailsScrollViewer.Visibility = Visibility.Collapsed;
         }
 
+        // В методе ConfirmRegionButton_Click заменить содержимое на:
         private void ConfirmRegionButton_Click(object sender, RoutedEventArgs e)
         {
             if (selectedRegion == null)
@@ -277,15 +278,12 @@ namespace WpfApp1
                 return;
             }
 
-            // Открываем главное окно новостей с выбранным регионом
-            var newsMainWindow = new news_main(currentRole, currentUsername, currentUserId);
-            newsMainWindow.WindowStartupLocation = WindowStartupLocation.CenterScreen;
-
-            // Передаем выбранный регион в окно новостей (через статическое свойство или Tag)
-            // Для простоты используем сохранение в статическую переменную
             SelectedRegion = selectedRegion;
 
-            newsMainWindow.Show();
+            // Открываем окно выбора (Новости/Погода)
+            var selectionWindow = new SelectionWindow(currentRole, currentUsername, currentUserId);
+            selectionWindow.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+            selectionWindow.Show();
             this.Close();
         }
 

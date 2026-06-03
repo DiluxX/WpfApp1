@@ -19,6 +19,12 @@ namespace WpfApp1
         private string currentUsername;
         private int currentUserId;
         private Dictionary<string, bool> permissions;
+        private int currentPage = 1;
+        private int totalResults = 0;
+        private bool isLoadingMore = false;
+        private bool hasMorePages = true;
+        private bool isSearchMode = false;   // true – режим поиска
+        private string activeSearchQuery = "";
 
         // Полный загруженный пул — всегда "Все новости", фильтруем локально
         private List<NewsArticle> allNews = new List<NewsArticle>();
@@ -150,20 +156,21 @@ namespace WpfApp1
             }
         }
 
-        private void CategoryButton_Click(object sender, RoutedEventArgs e)
+        private async void CategoryButton_Click(object sender, RoutedEventArgs e)
         {
+            // Если мы в режиме поиска – выходим из него и загружаем обычную ленту
+            if (isSearchMode)
+            {
+                ClearSearchMode();
+                await LoadAllNewsAsync(true);
+            }
+
             if (!(sender is Button btn) || !(btn.Tag is string selectedCategory))
                 return;
 
             currentCategory = selectedCategory;
-            // НЕ трогаем SearchTextBox и currentSearchQuery — поиск сохраняется
-
             UpdateActiveCategoryButton(selectedCategory);
-
-            if (CurrentCategoryTextBlock != null)
-                CurrentCategoryTextBlock.Text = selectedCategory;
-
-            // Применяем фильтры локально — без нового сетевого запроса
+            CurrentCategoryTextBlock.Text = selectedCategory;
             ApplyFilters();
         }
 
@@ -173,34 +180,105 @@ namespace WpfApp1
         /// Загружает полный пул новостей с сервиса (или fallback),
         /// затем применяет текущие фильтры.
         /// </summary>
-        private async Task LoadAllNewsAsync()
+        private async Task LoadAllNewsAsync(bool resetPagination = true)
         {
             try
             {
+                if (resetPagination)
+                {
+                    currentPage = 1;
+                    allNews.Clear();
+                    hasMorePages = true;
+                }
+
                 ShowProgress(true);
                 HideArticleDetails();
                 StatusTextBlock.Text = "Загрузка новостей...";
 
-                // Запрашиваем большой пул — null = все категории
-                allNews = await newsApiService.GetTopHeadlinesAsync("ru", null, 100);
+                var result = await newsApiService.GetTopHeadlinesPageAsync("ru", null, currentPage, 20);
+                if (resetPagination)
+                    allNews = result.Articles;
+                else
+                    allNews.AddRange(result.Articles);
 
-                // Если сервис вернул данные без категорий — проставляем их сами
+                totalResults = result.TotalResults;
+                hasMorePages = allNews.Count < totalResults;
+
                 EnsureCategoriesAssigned();
-
                 ApplyFilters();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Ошибка загрузки: {ex.Message}", "Ошибка",
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show($"Ошибка загрузки: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
             finally
             {
                 ShowProgress(false);
                 StatusTextBlock.Text = "Готово";
+                isLoadingMore = false;
             }
         }
 
+        // Новый метод подгрузки
+        private async Task LoadMoreNewsAsync()
+        {
+            if (isLoadingMore || !hasMorePages) return;
+            isLoadingMore = true;
+            currentPage++;
+
+            try
+            {
+                if (isSearchMode && !string.IsNullOrEmpty(activeSearchQuery))
+                {
+                    // Подгрузка результатов поиска
+                    var result = await newsApiService.SearchNewsPageAsync(activeSearchQuery, "ru", currentPage, 20);
+                    if (result.Articles.Count > 0)
+                    {
+                        allNews.AddRange(result.Articles);
+                        ApplyFilters();
+                    }
+                    hasMorePages = allNews.Count < result.TotalResults;
+                    totalResults = result.TotalResults;
+                }
+                else
+                {
+                    // Обычная подгрузка из ленты (как было)
+                    var result = await newsApiService.GetTopHeadlinesPageAsync("ru", null, currentPage, 20);
+                    if (result.Articles.Count > 0)
+                    {
+                        allNews.AddRange(result.Articles);
+                        EnsureCategoriesAssigned();
+                        ApplyFilters();
+                    }
+                    hasMorePages = allNews.Count < result.TotalResults;
+                    totalResults = result.TotalResults;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Ошибка подгрузки: {ex.Message}");
+                currentPage--;
+            }
+            finally
+            {
+                isLoadingMore = false;
+            }
+        }
+
+        // Обработчик прокрутки (привяжите в XAML)
+        private void NewsScrollViewer_ScrollChanged(object sender, System.Windows.Controls.ScrollChangedEventArgs e)
+        {
+            if (e.VerticalOffset + e.ViewportHeight >= e.ExtentHeight - 50)
+            {
+                if (hasMorePages && !isLoadingMore)
+                {
+                    _ = LoadMoreNewsAsync();
+                }
+            }
+        }
+
+        // Новый метод для подгрузки следующей страницы
+       
         /// <summary>
         /// Если все статьи пришли с одинаковой категорией "Новости" (из API)
         /// или вообще без категории — распределяем их по категориям циклически,
@@ -334,32 +412,66 @@ namespace WpfApp1
 
         private async void LoadButton_Click(object sender, RoutedEventArgs e)
         {
-            // Перезагружаем весь пул, затем применяем текущие фильтры
-            await LoadAllNewsAsync();
+            if (isSearchMode)
+            {
+                ClearSearchMode();
+                await LoadAllNewsAsync(true);
+                UpdateActiveCategoryButton(currentCategory);
+            }
+            else
+            {
+                await LoadAllNewsAsync(true);
+            }
         }
 
-        private void SearchButton_Click(object sender, RoutedEventArgs e)
+        private async void SearchButton_Click(object sender, RoutedEventArgs e)
         {
             string query = SearchTextBox.Text.Trim();
             if (string.IsNullOrEmpty(query))
             {
-                MessageBox.Show("Введите текст для поиска", "Поиск",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("Введите текст для поиска", "Поиск", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
-            currentSearchQuery = query;
-            ApplyFilters();
+            // Переключаемся в режим поиска
+            isSearchMode = true;
+            activeSearchQuery = query;
+            currentSearchQuery = query;   // для отображения в заголовке
+            currentPage = 1;
+            hasMorePages = true;
+
+            ShowProgress(true);
+            StatusTextBlock.Text = $"Поиск: {query}...";
+
+            try
+            {
+                var result = await newsApiService.SearchNewsPageAsync(query, "ru", currentPage, 20);
+                allNews = result.Articles;
+                totalResults = result.TotalResults;
+                hasMorePages = allNews.Count < totalResults;
+
+                ApplyFilters(); // Обновит ItemsControl
+                HideArticleDetails();
+
+                // Обновляем заголовок
+                CurrentCategoryTextBlock.Text = $"Поиск: «{query}»";
+                NewsCountTextBlock.Text = $"{allNews.Count} из {totalResults} результатов";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка поиска: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            finally
+            {
+                ShowProgress(false);
+                StatusTextBlock.Text = "Готово";
+            }
         }
 
         private void SearchTextBox_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Enter)
-            {
-                string query = SearchTextBox.Text.Trim();
-                currentSearchQuery = query; // пустая строка — сбросит фильтр
-                ApplyFilters();
-            }
+                SearchButton_Click(sender, e);
         }
 
         private void ClearSearchButton_Click(object sender, RoutedEventArgs e)
@@ -369,7 +481,15 @@ namespace WpfApp1
             UpdateActiveCategoryButton(currentCategory);
             ApplyFilters();
         }
-
+        private void ClearSearchMode()
+        {
+            isSearchMode = false;
+            activeSearchQuery = "";
+            currentSearchQuery = "";
+            SearchTextBox.Text = "";
+            currentPage = 1;
+            hasMorePages = true;
+        }
         private void ProfileButton_Click(object sender, RoutedEventArgs e)
         {
             if (currentRole == "guest" || currentUserId == 0)
@@ -390,10 +510,7 @@ namespace WpfApp1
         /// </summary>
         private void ChangeRegionButton_Click(object sender, RoutedEventArgs e)
         {
-            // Очищаем выбранный регион
             RegionSelectWindow.SelectedRegion = null;
-
-            // Открываем окно выбора региона заново
             var regionSelectWindow = new RegionSelectWindow(currentRole, currentUsername, currentUserId);
             regionSelectWindow.WindowStartupLocation = WindowStartupLocation.CenterScreen;
             regionSelectWindow.Show();
