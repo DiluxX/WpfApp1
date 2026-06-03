@@ -1,9 +1,10 @@
 ﻿<Window x:Class="WpfApp1.SelectionWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Выбор раздела" Height="450" Width="800"
+        Title="Выбор раздела" Height="440" Width="600"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize">
+
     <Grid Background="#F4F6F9">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -12,49 +13,69 @@
         </Grid.RowDefinitions>
 
         <!-- Шапка -->
-        <Border Grid.Row="0" Background="#1565C0" Padding="20,16">
+        <Border Grid.Row="0" Background="#1565C0" Padding="20,18">
             <StackPanel>
-                <TextBlock Text="НОВОСТНОЙ ПОРТАЛ" Foreground="White" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center"/>
-                <TextBlock x:Name="WelcomeTextBlock" Text="" Foreground="#B3D4FF" FontSize="13" HorizontalAlignment="Center" Margin="0,6,0,0"/>
-                <Border Background="#FF008BE4" CornerRadius="12" Padding="10,3" HorizontalAlignment="Center" Margin="0,8,0,0">
-                    <TextBlock x:Name="RoleTextBlock" Text="" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
-                </Border>
-                <Border x:Name="RegionBadge" Background="#4CAF50" CornerRadius="12" Padding="10,3" HorizontalAlignment="Center" Margin="0,6,0,0" Visibility="Collapsed">
-                    <TextBlock x:Name="RegionTextBlock" Text="" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
+                <TextBlock Text="НОВОСТНОЙ ПОРТАЛ" Foreground="White"
+                           FontSize="18" FontWeight="Bold" HorizontalAlignment="Center"/>
+                <TextBlock x:Name="WelcomeTextBlock" Text=""
+                           Foreground="#B3D4FF" FontSize="13"
+                           HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                <Border Background="#FFFFFF22" CornerRadius="12" Padding="12,4"
+                        HorizontalAlignment="Center" Margin="0,8,0,0">
+                    <TextBlock x:Name="RoleTextBlock" Text=""
+                               Foreground="White" FontSize="11" FontWeight="SemiBold"/>
                 </Border>
             </StackPanel>
         </Border>
 
-        <!-- Кнопки -->
-        <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="20">
-            <Button x:Name="NewsButton" Content="📰  НОВОСТИ" Width="300" Height="80" Margin="0,0,0,20"
-                    FontSize="18" FontWeight="Bold" Background="#2196F3" Foreground="White"
-                    BorderThickness="0" Cursor="Hand" Click="NewsButton_Click">
+        <!-- Кнопки выбора -->
+        <StackPanel Grid.Row="1" VerticalAlignment="Center"
+                    HorizontalAlignment="Center" Margin="10">
+
+            <TextBlock Text="Что хотите открыть?"
+                       FontSize="16" FontWeight="Bold" Foreground="#37474F"
+                       HorizontalAlignment="Center" Margin="0,0,0,28"/>
+
+            <!-- Новости -->
+            <Button x:Name="NewsButton" Width="340" Height="90" Margin="0,0,0,16"
+                    Click="NewsButton_Click" Cursor="Hand">
                 <Button.Template>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="12" Padding="20">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <Border x:Name="Bd" Background="#1565C0" CornerRadius="14">
+                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                <TextBlock Text="📰" FontSize="24" HorizontalAlignment="Center"/>
+                                <TextBlock Text="НОВОСТИ" FontSize="16" FontWeight="Bold"
+                                           Foreground="White" Margin="0,4,0,0"/>
+                                <TextBlock Text="Актуальные новости со всего мира"
+                                           FontSize="11" Foreground="#B3D4FF" Margin="0,2,0,0"/>
+                            </StackPanel>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Opacity" Value="0.85"/>
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.88"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Button.Template>
             </Button>
 
-            <Button x:Name="WeatherButton" Content="⛅  ПОГОДА" Width="300" Height="80"
-                    FontSize="18" FontWeight="Bold" Background="#FF9800" Foreground="White"
-                    BorderThickness="0" Cursor="Hand" Click="WeatherButton_Click">
+            <!-- Погода -->
+            <Button x:Name="WeatherButton" Width="340" Height="90"
+                    Click="WeatherButton_Click" Cursor="Hand">
                 <Button.Template>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="12" Padding="20">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <Border x:Name="Bd" Background="#FF9800" CornerRadius="14">
+                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                <TextBlock Text="⛅" FontSize="24" HorizontalAlignment="Center"/>
+                                <TextBlock Text="ПОГОДА" FontSize="16" FontWeight="Bold"
+                                           Foreground="White" Margin="0,4,0,0"/>
+                                <TextBlock Text="Текущая погода в вашем городе"
+                                           FontSize="11" Foreground="#FFF3E0" Margin="0,0,0,0"/>
+                            </StackPanel>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Opacity" Value="0.85"/>
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.88"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -63,13 +84,17 @@
         </StackPanel>
 
         <!-- Нижняя панель -->
-        <StatusBar Grid.Row="2" Background="White" BorderBrush="#E8EDF2" BorderThickness="0,1,0,0">
-            <StatusBarItem>
-                <Button Content="Выйти" Click="LogoutButton_Click" Background="Transparent" BorderThickness="0" Foreground="#EF5350" Cursor="Hand"/>
-            </StatusBarItem>
-            <StatusBarItem HorizontalAlignment="Right">
-                <TextBlock Text="Новостной портал v1.0" FontSize="11" Foreground="#B0BEC5"/>
-            </StatusBarItem>
-        </StatusBar>
+        <Border Grid.Row="2" Background="White"
+                BorderBrush="#E8EDF2" BorderThickness="0,1,0,0" Padding="16,10">
+            <Grid>
+                <Button Content="← Выйти" HorizontalAlignment="Left"
+                        Click="LogoutButton_Click"
+                        Background="Transparent" BorderThickness="0"
+                        Foreground="#EF5350" Cursor="Hand" FontSize="12"/>
+                <TextBlock Text="Новостной портал v1.0" FontSize="11"
+                           Foreground="#B0BEC5" HorizontalAlignment="Right"
+                           VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
     </Grid>
 </Window>
