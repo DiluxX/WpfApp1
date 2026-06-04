@@ -7,7 +7,6 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using WpfApp1;
 
 namespace WpfApp1
 {
@@ -15,23 +14,31 @@ namespace WpfApp1
     {
         private Database database = new Database();
         private NewsApiService newsApiService = new NewsApiService();
+
         private string currentRole;
         private string currentUsername;
         private int currentUserId;
         private Dictionary<string, bool> permissions;
+
+        // Пагинация
         private int currentPage = 1;
         private int totalResults = 0;
         private bool isLoadingMore = false;
         private bool hasMorePages = true;
-        private bool isSearchMode = false;   // true – режим поиска
+
+        // Режим поиска
+        private bool isSearchMode = false;
         private string activeSearchQuery = "";
 
-        // Полный загруженный пул — всегда "Все новости", фильтруем локально
-        private List<NewsArticle> allNews = new List<NewsArticle>();
+        // Режим региональных новостей
+        private bool isRegionalMode = false;
+        private string activeRegion = "";
 
-        // То, что сейчас показывается
+        // Данные
+        private List<NewsArticle> allNews = new List<NewsArticle>();
         private List<NewsArticle> currentNews = new List<NewsArticle>();
 
+        // Текущие фильтры
         private string currentCategory = "Все новости";
         private string currentSearchQuery = "";
 
@@ -62,13 +69,10 @@ namespace WpfApp1
             WelcomeTextBlock.Text = $"Добро пожаловать, {currentUsername}!";
             RoleTextBlock.Text = GetRoleDisplayName(currentRole);
 
-            // Отображаем выбранный регион
             DisplaySelectedRegion();
-
             UpdateUIForRole();
             BuildCategoryButtons();
 
-            // Загружаем весь пул новостей один раз
             await LoadAllNewsAsync();
         }
 
@@ -83,15 +87,13 @@ namespace WpfApp1
             }
         }
 
-        // ═══════════════════════════════════════════════════════
-        //  Отображение выбранного региона
-        // ═══════════════════════════════════════════════════════
+        // ── Регион ────────────────────────────────────────────────────────
 
         private void DisplaySelectedRegion()
         {
-            if (RegionSelectWindow.SelectedRegion != null)
+            var region = RegionSelectWindow.SelectedRegion;
+            if (region != null)
             {
-                var region = RegionSelectWindow.SelectedRegion;
                 RegionTextBlock.Text = $"📍 {region.Name}";
                 RegionBadge.Visibility = Visibility.Visible;
             }
@@ -100,6 +102,8 @@ namespace WpfApp1
                 RegionBadge.Visibility = Visibility.Collapsed;
             }
         }
+
+        // ── Роли ──────────────────────────────────────────────────────────
 
         private void UpdateUIForRole()
         {
@@ -118,11 +122,7 @@ namespace WpfApp1
 
         private void BuildCategoryButtons()
         {
-            // Очищаем только кнопки, оставляем заголовок из XAML
-            // (заголовок уже прописан в XAML, добавляем только кнопки)
             categoryButtons.Clear();
-
-            // Удаляем старые кнопки если они есть (при повторном вызове)
             var toRemove = CategoriesPanel.Children.OfType<Button>().ToList();
             foreach (var b in toRemove)
                 CategoriesPanel.Children.Remove(b);
@@ -135,14 +135,34 @@ namespace WpfApp1
                     Tag = category,
                     HorizontalContentAlignment = HorizontalAlignment.Left
                 };
-
                 btn.Style = category == currentCategory
                     ? (Style)FindResource("ActiveCategoryButtonStyle")
                     : (Style)FindResource("CategoryButtonStyle");
-
                 btn.Click += CategoryButton_Click;
                 categoryButtons.Add(btn);
                 CategoriesPanel.Children.Add(btn);
+            }
+
+            // Кнопка региональных новостей (если выбран регион)
+            var selectedRegion = RegionSelectWindow.SelectedRegion;
+            if (selectedRegion != null)
+            {
+                var regionalBtn = new Button
+                {
+                    Content = $"📍 {selectedRegion.Name}",
+                    Tag = $"__region__{selectedRegion.Name}",
+                    HorizontalContentAlignment = HorizontalAlignment.Left
+                };
+                regionalBtn.Style = (Style)FindResource("CategoryButtonStyle");
+                regionalBtn.Click += RegionalNewsButton_Click;
+                categoryButtons.Add(regionalBtn);
+                CategoriesPanel.Children.Add(new Border
+                {
+                    Height = 1,
+                    Background = new SolidColorBrush(Color.FromRgb(0xF0, 0xF0, 0xF0)),
+                    Margin = new Thickness(0, 4, 0, 4)
+                });
+                CategoriesPanel.Children.Add(regionalBtn);
             }
         }
 
@@ -150,7 +170,10 @@ namespace WpfApp1
         {
             foreach (var btn in categoryButtons)
             {
-                btn.Style = (btn.Tag?.ToString() == activeCategory)
+                string tag = btn.Tag?.ToString() ?? "";
+                bool isActive = tag == activeCategory ||
+                                  (activeCategory != null && tag == $"__region__{activeCategory}");
+                btn.Style = isActive
                     ? (Style)FindResource("ActiveCategoryButtonStyle")
                     : (Style)FindResource("CategoryButtonStyle");
             }
@@ -158,48 +181,55 @@ namespace WpfApp1
 
         private async void CategoryButton_Click(object sender, RoutedEventArgs e)
         {
-            // Если мы в режиме поиска – выходим из него и загружаем обычную ленту
-            if (isSearchMode)
-            {
-                ClearSearchMode();
-                await LoadAllNewsAsync(true);
-            }
+            if (isSearchMode) { ClearSearchMode(); }
+            if (isRegionalMode) { ClearRegionalMode(); }
 
-            if (!(sender is Button btn) || !(btn.Tag is string selectedCategory))
-                return;
+            if (!(sender is Button btn) || !(btn.Tag is string selectedCategory)) return;
 
             currentCategory = selectedCategory;
             UpdateActiveCategoryButton(selectedCategory);
             CurrentCategoryTextBlock.Text = selectedCategory;
-            ApplyFilters();
+
+            // Если при смене категории пула нет — перезагружаем
+            if (allNews.Count == 0)
+                await LoadAllNewsAsync();
+            else
+                ApplyFilters();
+        }
+
+        private async void RegionalNewsButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!(sender is Button btn)) return;
+
+            string tag = btn.Tag?.ToString() ?? "";
+            string regionName = tag.Replace("__region__", "");
+
+            isRegionalMode = true;
+            activeRegion = regionName;
+            currentCategory = "Все новости";
+            if (isSearchMode) ClearSearchMode();
+
+            UpdateActiveCategoryButton($"__region__{regionName}");
+            CurrentCategoryTextBlock.Text = $"📍 {regionName}";
+
+            await LoadRegionalNewsAsync(regionName);
         }
 
         // ── Загрузка данных ───────────────────────────────────────────────
 
-        /// <summary>
-        /// Загружает полный пул новостей с сервиса (или fallback),
-        /// затем применяет текущие фильтры.
-        /// </summary>
         private async Task LoadAllNewsAsync(bool resetPagination = true)
         {
             try
             {
-                if (resetPagination)
-                {
-                    currentPage = 1;
-                    allNews.Clear();
-                    hasMorePages = true;
-                }
+                if (resetPagination) { currentPage = 1; allNews.Clear(); hasMorePages = true; }
 
                 ShowProgress(true);
                 HideArticleDetails();
                 StatusTextBlock.Text = "Загрузка новостей...";
 
                 var result = await newsApiService.GetTopHeadlinesPageAsync("ru", null, currentPage, 20);
-                if (resetPagination)
-                    allNews = result.Articles;
-                else
-                    allNews.AddRange(result.Articles);
+                if (resetPagination) allNews = result.Articles;
+                else allNews.AddRange(result.Articles);
 
                 totalResults = result.TotalResults;
                 hasMorePages = allNews.Count < totalResults;
@@ -209,7 +239,8 @@ namespace WpfApp1
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Ошибка загрузки: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show($"Ошибка загрузки: {ex.Message}", "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
             }
             finally
             {
@@ -219,7 +250,41 @@ namespace WpfApp1
             }
         }
 
-        // Новый метод подгрузки
+        private async Task LoadRegionalNewsAsync(string regionName, bool reset = true)
+        {
+            try
+            {
+                if (reset) { currentPage = 1; allNews.Clear(); hasMorePages = true; }
+
+                ShowProgress(true);
+                HideArticleDetails();
+                StatusTextBlock.Text = $"Загрузка новостей: {regionName}...";
+
+                var result = await newsApiService.GetTopHeadlinesPageAsync(
+                    "ru", null, currentPage, 20, regionName);
+
+                if (reset) allNews = result.Articles;
+                else allNews.AddRange(result.Articles);
+
+                totalResults = result.TotalResults;
+                hasMorePages = allNews.Count < totalResults;
+
+                ApplyFilters();
+                CurrentCategoryTextBlock.Text = $"📍 {regionName}";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка загрузки региональных новостей: {ex.Message}", "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            finally
+            {
+                ShowProgress(false);
+                StatusTextBlock.Text = "Готово";
+                isLoadingMore = false;
+            }
+        }
+
         private async Task LoadMoreNewsAsync()
         {
             if (isLoadingMore || !hasMorePages) return;
@@ -230,19 +295,20 @@ namespace WpfApp1
             {
                 if (isSearchMode && !string.IsNullOrEmpty(activeSearchQuery))
                 {
-                    // Подгрузка результатов поиска
                     var result = await newsApiService.SearchNewsPageAsync(activeSearchQuery, "ru", currentPage, 20);
-                    if (result.Articles.Count > 0)
-                    {
-                        allNews.AddRange(result.Articles);
-                        ApplyFilters();
-                    }
+                    if (result.Articles.Count > 0) { allNews.AddRange(result.Articles); ApplyFilters(); }
+                    hasMorePages = allNews.Count < result.TotalResults;
+                    totalResults = result.TotalResults;
+                }
+                else if (isRegionalMode && !string.IsNullOrEmpty(activeRegion))
+                {
+                    var result = await newsApiService.GetTopHeadlinesPageAsync("ru", null, currentPage, 20, activeRegion);
+                    if (result.Articles.Count > 0) { allNews.AddRange(result.Articles); ApplyFilters(); }
                     hasMorePages = allNews.Count < result.TotalResults;
                     totalResults = result.TotalResults;
                 }
                 else
                 {
-                    // Обычная подгрузка из ленты (как было)
                     var result = await newsApiService.GetTopHeadlinesPageAsync("ru", null, currentPage, 20);
                     if (result.Articles.Count > 0)
                     {
@@ -259,76 +325,49 @@ namespace WpfApp1
                 System.Diagnostics.Debug.WriteLine($"Ошибка подгрузки: {ex.Message}");
                 currentPage--;
             }
-            finally
-            {
-                isLoadingMore = false;
-            }
+            finally { isLoadingMore = false; }
         }
 
-        // Обработчик прокрутки (привяжите в XAML)
-        private void NewsScrollViewer_ScrollChanged(object sender, System.Windows.Controls.ScrollChangedEventArgs e)
+        private void NewsScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
         {
-            if (e.VerticalOffset + e.ViewportHeight >= e.ExtentHeight - 50)
-            {
+            if (e.VerticalOffset + e.ViewportHeight >= e.ExtentHeight - 100)
                 if (hasMorePages && !isLoadingMore)
-                {
                     _ = LoadMoreNewsAsync();
-                }
-            }
         }
 
-        // Новый метод для подгрузки следующей страницы
-       
-        /// <summary>
-        /// Если все статьи пришли с одинаковой категорией "Новости" (из API)
-        /// или вообще без категории — распределяем их по категориям циклически,
-        /// чтобы фильтрация работала даже на fallback-данных.
-        /// </summary>
+        // ── Фильтры ───────────────────────────────────────────────────────
+
         private void EnsureCategoriesAssigned()
         {
-            var contentCategories = Categories.Skip(1).ToArray(); // без "Все новости"
-
-            // Проверяем: если все статьи имеют одну и ту же (или пустую) категорию
+            var contentCats = Categories.Skip(1).ToArray();
             bool needsAssignment = allNews.All(a =>
                 string.IsNullOrEmpty(a.Category) ||
                 string.Equals(a.Category, "Новости", StringComparison.OrdinalIgnoreCase));
 
             if (needsAssignment)
-            {
                 for (int i = 0; i < allNews.Count; i++)
-                    allNews[i].Category = contentCategories[i % contentCategories.Length];
-            }
+                    allNews[i].Category = contentCats[i % contentCats.Length];
         }
 
-        /// <summary>
-        /// Применяет категорию и строку поиска к allNews,
-        /// обновляет NewsItemsControl. Никаких сетевых запросов.
-        /// </summary>
         private void ApplyFilters()
         {
             var filtered = allNews.AsEnumerable();
 
-            // Фильтр по категории
-            if (currentCategory != "Все новости")
-            {
+            if (!isRegionalMode && currentCategory != "Все новости")
                 filtered = filtered.Where(a =>
                     string.Equals(a.Category, currentCategory, StringComparison.OrdinalIgnoreCase));
-            }
 
-            // Фильтр по строке поиска
             if (!string.IsNullOrWhiteSpace(currentSearchQuery))
             {
                 string q = currentSearchQuery.ToLowerInvariant();
                 filtered = filtered.Where(a =>
-                    (a.Title != null && a.Title.ToLowerInvariant().Contains(q)) ||
-                    (a.Description != null && a.Description.ToLowerInvariant().Contains(q)) ||
-                    (a.Content != null && a.Content.ToLowerInvariant().Contains(q)) ||
-                    (a.Source != null && a.Source.ToLowerInvariant().Contains(q)) ||
-                    (a.Author != null && a.Author.ToLowerInvariant().Contains(q)));
+                    (a.Title ?? "").ToLowerInvariant().Contains(q) ||
+                    (a.Description ?? "").ToLowerInvariant().Contains(q) ||
+                    (a.Content ?? "").ToLowerInvariant().Contains(q) ||
+                    (a.Source ?? "").ToLowerInvariant().Contains(q));
             }
 
             currentNews = filtered.ToList();
-
             NewsItemsControl.ItemsSource = null;
             NewsItemsControl.ItemsSource = currentNews;
 
@@ -337,17 +376,38 @@ namespace WpfApp1
                 ? $"{count} {GetNounForm(count, "новость", "новости", "новостей")}"
                 : "Ничего не найдено";
 
-            // Заголовок над списком
             if (CurrentCategoryTextBlock != null)
             {
-                if (!string.IsNullOrWhiteSpace(currentSearchQuery) && currentCategory != "Все новости")
-                    CurrentCategoryTextBlock.Text = $"{currentCategory} · «{currentSearchQuery}»";
+                if (isRegionalMode)
+                    CurrentCategoryTextBlock.Text = $"📍 {activeRegion}";
                 else if (!string.IsNullOrWhiteSpace(currentSearchQuery))
                     CurrentCategoryTextBlock.Text = $"Поиск: «{currentSearchQuery}»";
                 else
                     CurrentCategoryTextBlock.Text = currentCategory;
             }
         }
+
+        // ── Вспомогательные методы режимов ───────────────────────────────
+
+        private void ClearSearchMode()
+        {
+            isSearchMode = false;
+            activeSearchQuery = "";
+            currentSearchQuery = "";
+            SearchTextBox.Text = "";
+            currentPage = 1;
+            hasMorePages = true;
+        }
+
+        private void ClearRegionalMode()
+        {
+            isRegionalMode = false;
+            activeRegion = "";
+            currentPage = 1;
+            hasMorePages = true;
+        }
+
+        // ── UI ────────────────────────────────────────────────────────────
 
         private void ShowProgress(bool show)
         {
@@ -391,17 +451,9 @@ namespace WpfApp1
                     ArticleImage.Source = bitmap;
                     ArticleImageBorder.Visibility = Visibility.Visible;
                 }
-                catch
-                {
-                    ArticleImage.Source = null;
-                    ArticleImageBorder.Visibility = Visibility.Collapsed;
-                }
+                catch { ArticleImage.Source = null; ArticleImageBorder.Visibility = Visibility.Collapsed; }
             }
-            else
-            {
-                ArticleImage.Source = null;
-                ArticleImageBorder.Visibility = Visibility.Collapsed;
-            }
+            else { ArticleImage.Source = null; ArticleImageBorder.Visibility = Visibility.Collapsed; }
 
             EmptyDetailPanel.Visibility = Visibility.Collapsed;
             ArticleScrollViewer.Visibility = Visibility.Visible;
@@ -412,14 +464,12 @@ namespace WpfApp1
 
         private async void LoadButton_Click(object sender, RoutedEventArgs e)
         {
-            if (isSearchMode)
-            {
-                ClearSearchMode();
-                await LoadAllNewsAsync(true);
-                UpdateActiveCategoryButton(currentCategory);
-            }
+            if (isRegionalMode && !string.IsNullOrEmpty(activeRegion))
+                await LoadRegionalNewsAsync(activeRegion);
             else
             {
+                if (isSearchMode) ClearSearchMode();
+                UpdateActiveCategoryButton(currentCategory);
                 await LoadAllNewsAsync(true);
             }
         }
@@ -429,16 +479,17 @@ namespace WpfApp1
             string query = SearchTextBox.Text.Trim();
             if (string.IsNullOrEmpty(query))
             {
-                MessageBox.Show("Введите текст для поиска", "Поиск", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("Введите текст для поиска", "Поиск",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
-            // Переключаемся в режим поиска
             isSearchMode = true;
             activeSearchQuery = query;
-            currentSearchQuery = query;   // для отображения в заголовке
+            currentSearchQuery = query;
             currentPage = 1;
             hasMorePages = true;
+            if (isRegionalMode) ClearRegionalMode();
 
             ShowProgress(true);
             StatusTextBlock.Text = $"Поиск: {query}...";
@@ -450,46 +501,34 @@ namespace WpfApp1
                 totalResults = result.TotalResults;
                 hasMorePages = allNews.Count < totalResults;
 
-                ApplyFilters(); // Обновит ItemsControl
+                ApplyFilters();
                 HideArticleDetails();
-
-                // Обновляем заголовок
                 CurrentCategoryTextBlock.Text = $"Поиск: «{query}»";
-                NewsCountTextBlock.Text = $"{allNews.Count} из {totalResults} результатов";
+                NewsCountTextBlock.Text = totalResults > 0
+                    ? $"{allNews.Count} из {totalResults} результатов"
+                    : "Ничего не найдено";
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Ошибка поиска: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show($"Ошибка поиска: {ex.Message}", "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
             }
-            finally
-            {
-                ShowProgress(false);
-                StatusTextBlock.Text = "Готово";
-            }
+            finally { ShowProgress(false); StatusTextBlock.Text = "Готово"; }
         }
 
         private void SearchTextBox_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Key == Key.Enter)
-                SearchButton_Click(sender, e);
+            if (e.Key == Key.Enter) SearchButton_Click(sender, e);
         }
 
-        private void ClearSearchButton_Click(object sender, RoutedEventArgs e)
+        private async void ClearSearchButton_Click(object sender, RoutedEventArgs e)
         {
-            SearchTextBox.Text = "";
-            currentSearchQuery = "";
+            ClearSearchMode();
             UpdateActiveCategoryButton(currentCategory);
-            ApplyFilters();
+            if (allNews.Count == 0) await LoadAllNewsAsync();
+            else ApplyFilters();
         }
-        private void ClearSearchMode()
-        {
-            isSearchMode = false;
-            activeSearchQuery = "";
-            currentSearchQuery = "";
-            SearchTextBox.Text = "";
-            currentPage = 1;
-            hasMorePages = true;
-        }
+
         private void ProfileButton_Click(object sender, RoutedEventArgs e)
         {
             if (currentRole == "guest" || currentUserId == 0)
@@ -498,85 +537,54 @@ namespace WpfApp1
                     "Доступ ограничен", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
-
-            var profileWindow = new ProfileWindow(currentUserId);
-            profileWindow.Owner = this;
-            profileWindow.WindowStartupLocation = WindowStartupLocation.CenterOwner;
-            profileWindow.ShowDialog();
+            var win = new ProfileWindow(currentUserId);
+            win.Owner = this;
+            win.WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            win.ShowDialog();
         }
 
-        /// <summary>
-        /// Смена региона — возврат к окну выбора местности
-        /// </summary>
         private void ChangeRegionButton_Click(object sender, RoutedEventArgs e)
         {
             RegionSelectWindow.SelectedRegion = null;
-            var regionSelectWindow = new RegionSelectWindow(currentRole, currentUsername, currentUserId);
-            regionSelectWindow.WindowStartupLocation = WindowStartupLocation.CenterScreen;
-            regionSelectWindow.Show();
-            this.Close();
+            var win = new RegionSelectWindow(currentRole, currentUsername, currentUserId);
+            win.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+            win.Show();
+            Close();
         }
 
         private void OpenInBrowserButton_Click(object sender, RoutedEventArgs e)
         {
             if (string.IsNullOrEmpty(ArticleTitleTextBlock.Text)) return;
-
             var article = currentNews.Find(a => a.Title == ArticleTitleTextBlock.Text);
-            if (article == null) return;
-
-            if (!string.IsNullOrEmpty(article.Url))
-            {
-                try
-                {
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                    {
-                        FileName = article.Url,
-                        UseShellExecute = true
-                    });
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"Не удалось открыть ссылку: {ex.Message}", "Ошибка",
-                        MessageBoxButton.OK, MessageBoxImage.Error);
-                }
-            }
+            if (article?.Url == null) return;
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = article.Url, UseShellExecute = true }); }
+            catch (Exception ex) { MessageBox.Show($"Не удалось открыть ссылку: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error); }
         }
 
         private void ManageUsersButton_Click(object sender, RoutedEventArgs e)
-        {
-            MessageBox.Show("Функция управления пользователями будет реализована позже.", "Информация",
-                MessageBoxButton.OK, MessageBoxImage.Information);
-        }
+            => MessageBox.Show("Функция управления пользователями будет реализована позже.", "Информация", MessageBoxButton.OK, MessageBoxImage.Information);
 
         private void ModerateCommentsButton_Click(object sender, RoutedEventArgs e)
-        {
-            MessageBox.Show("Функция модерации комментариев будет реализована позже.", "Информация",
-                MessageBoxButton.OK, MessageBoxImage.Information);
-        }
+            => MessageBox.Show("Функция модерации комментариев будет реализована позже.", "Информация", MessageBoxButton.OK, MessageBoxImage.Information);
 
         private void AddCommentButton_Click(object sender, RoutedEventArgs e)
         {
             if (string.IsNullOrWhiteSpace(CommentTextBox.Text))
             {
-                MessageBox.Show("Введите текст комментария.", "Предупреждение",
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Введите текст комментария.", "Предупреждение", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-
-            MessageBox.Show("Комментарий будет сохранен после реализации функции.", "Информация",
-                MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show("Комментарий будет сохранен после реализации функции.", "Информация", MessageBoxButton.OK, MessageBoxImage.Information);
             CommentTextBox.Text = "";
         }
 
         private void LogoutButton_Click(object sender, RoutedEventArgs e)
         {
-            // Очищаем выбранный регион при выходе
             RegionSelectWindow.SelectedRegion = null;
-
-            var mainWindow = new MainWindow();
-            mainWindow.WindowStartupLocation = WindowStartupLocation.CenterScreen;
-            mainWindow.Show();
-            this.Close();
+            var win = new MainWindow();
+            win.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+            win.Show();
+            Close();
         }
 
         public void UpdateUserInfo(string displayName)
@@ -587,8 +595,6 @@ namespace WpfApp1
                 currentUsername = displayName;
             }
         }
-
-        // ── Вспомогательное ──────────────────────────────────────────────
 
         private static string GetNounForm(int n, string one, string few, string many)
         {

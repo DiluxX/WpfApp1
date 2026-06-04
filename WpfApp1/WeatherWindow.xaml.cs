@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Media.Imaging;
 
@@ -25,15 +26,18 @@ namespace WpfApp1
             LoadWeather();
         }
 
+        // Метод async void — вызывается из UI-потока, UI-элементы трогает напрямую
         private async void LoadWeather()
         {
             LoadingProgress.Visibility = Visibility.Visible;
             WeatherCard.Visibility = Visibility.Collapsed;
             ErrorTextBlock.Visibility = Visibility.Collapsed;
+            RefreshButton.IsEnabled = false;
 
             var weather = await _weatherService.GetWeatherAsync(_selectedRegion.Name);
 
             LoadingProgress.Visibility = Visibility.Collapsed;
+            RefreshButton.IsEnabled = true;
 
             if (!string.IsNullOrEmpty(weather.Error))
             {
@@ -45,41 +49,41 @@ namespace WpfApp1
             WeatherCard.Visibility = Visibility.Visible;
 
             TempTextBlock.Text = $"{weather.Temperature:F1}°C";
-            DescriptionTextBlock.Text = weather.Description;
+            DescriptionTextBlock.Text = char.ToUpper(weather.Description[0]) + weather.Description.Substring(1);
             FeelsLikeTextBlock.Text = $"Ощущается как {weather.FeelsLike:F1}°C";
             HumidityTextBlock.Text = $"{weather.Humidity}%";
             PressureTextBlock.Text = $"{weather.PressureMmHg} мм рт. ст.";
             WindTextBlock.Text = $"{weather.WindSpeed:F1} м/с";
             WindDirTextBlock.Text = weather.WindDirection;
 
-            // Загружаем иконку погоды
             if (!string.IsNullOrEmpty(weather.IconCode))
             {
                 try
                 {
-                    string iconUrl = $"https://openweathermap.org/img/wn/{weather.IconCode}@2x.png";
                     var bitmap = new BitmapImage();
                     bitmap.BeginInit();
-                    bitmap.UriSource = new Uri(iconUrl, UriKind.Absolute);
+                    bitmap.UriSource = new Uri($"https://openweathermap.org/img/wn/{weather.IconCode}@2x.png");
                     bitmap.CacheOption = BitmapCacheOption.OnLoad;
                     bitmap.EndInit();
                     WeatherIcon.Source = bitmap;
                 }
-                catch { }
+                catch { WeatherIcon.Source = null; }
             }
         }
 
+        // Кнопка "Назад" возвращает на SelectionWindow
         private void BackButton_Click(object sender, RoutedEventArgs e)
         {
-            var selectionWindow = new SelectionWindow(_role, _username, _userId);
-            selectionWindow.WindowStartupLocation = WindowStartupLocation.CenterScreen;
-            selectionWindow.Show();
+            var win = new SelectionWindow(_role, _username, _userId);
+            win.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+            win.Show();
             Close();
         }
 
-        private async void RefreshButton_Click(object sender, RoutedEventArgs e)
+        // ФИX КРАША: просто вызываем LoadWeather() напрямую из UI-потока
+        private void RefreshButton_Click(object sender, RoutedEventArgs e)
         {
-            await System.Threading.Tasks.Task.Run(() => LoadWeather());
+            LoadWeather();
         }
     }
 }

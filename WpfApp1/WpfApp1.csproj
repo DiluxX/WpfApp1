@@ -199,6 +199,9 @@
   <ItemGroup>
     <Resource Include="Resources\default-avatar.png" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="dbFolder\gstv.sql" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>

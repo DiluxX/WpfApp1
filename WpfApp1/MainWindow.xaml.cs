@@ -1,7 +1,6 @@
 ﻿using System;
-using System.Data.Entity;
 using System.Windows;
-using System.Windows.Controls;
+using System.Windows.Input;
 
 namespace WpfApp1
 {
@@ -12,34 +11,26 @@ namespace WpfApp1
         public MainWindow()
         {
             InitializeComponent();
-
-            // Инициализируем структуру БД
             database.InitializeDatabaseStructure();
-
-            // Устанавливаем фокус на поле логина
             UsernameTextBox.Focus();
         }
 
-        // Вход как гость
         private void GuestButton_Click(object sender, RoutedEventArgs e)
         {
-            OpenRegionSelectWindow("guest", "Гость", 0);
+            OpenSelectionWindow("guest", "Гость", 0);
         }
 
-        // Вход с авторизацией
         private void LoginButton_Click(object sender, RoutedEventArgs e)
         {
             string username = UsernameTextBox.Text.Trim();
             string password = PasswordBox.Password;
 
-            // Валидация
             if (string.IsNullOrEmpty(username))
             {
                 ShowError("Введите имя пользователя");
                 UsernameTextBox.Focus();
                 return;
             }
-
             if (string.IsNullOrEmpty(password))
             {
                 ShowError("Введите пароль");
@@ -47,20 +38,14 @@ namespace WpfApp1
                 return;
             }
 
-            // Блокируем кнопки во время проверки
             SetControlsEnabled(false);
-            ErrorTextBlock.Text = "Проверка данных...";
+            ShowError("Проверка данных...", false);
 
             try
             {
-                // Проверяем аутентификацию
                 var result = database.AuthenticateUser(username, password);
-
                 if (result.success)
-                {
-                    // Успешный вход → открываем окно выбора местности
-                    OpenRegionSelectWindow(result.role, result.username, result.userId);
-                }
+                    OpenSelectionWindow(result.role, result.username, result.userId);
                 else
                 {
                     ShowError("Неверное имя пользователя или пароль");
@@ -78,22 +63,23 @@ namespace WpfApp1
             }
         }
 
-        // Открытие окна выбора местности
-        private void OpenRegionSelectWindow(string role, string username, int userId)
+        private void OpenSelectionWindow(string role, string username, int userId)
         {
-            var regionSelectWindow = new RegionSelectWindow(role, username, userId);
-            regionSelectWindow.WindowStartupLocation = WindowStartupLocation.CenterScreen;
-            regionSelectWindow.Show();
-            this.Close();
+            var win = new SelectionWindow(role, username, userId);
+            win.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+            win.Show();
+            Close();
         }
 
-        // Показать ошибку
-        private void ShowError(string message)
+        private void ShowError(string message, bool isError = true)
         {
             ErrorTextBlock.Text = message;
+            ErrorTextBlock.Foreground = isError
+                ? System.Windows.Media.Brushes.IndianRed
+                : System.Windows.Media.Brushes.Gray;
+            ErrorTextBlock.Visibility = Visibility.Visible;
         }
 
-        // Блокировка/разблокировка элементов управления
         private void SetControlsEnabled(bool enabled)
         {
             LoginButton.IsEnabled = enabled;
@@ -102,21 +88,14 @@ namespace WpfApp1
             PasswordBox.IsEnabled = enabled;
         }
 
-        // Обработка нажатия Enter
-        private void PasswordBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        private void PasswordBox_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Key == System.Windows.Input.Key.Enter)
-            {
-                LoginButton_Click(sender, e);
-            }
+            if (e.Key == Key.Enter) LoginButton_Click(sender, e);
         }
 
-        private void UsernameTextBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        private void UsernameTextBox_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Key == System.Windows.Input.Key.Enter)
-            {
-                PasswordBox.Focus();
-            }
+            if (e.Key == Key.Enter) PasswordBox.Focus();
         }
     }
 }
