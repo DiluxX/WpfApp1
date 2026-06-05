@@ -9,7 +9,6 @@ namespace WpfApp1
     {
         private string connectionString = "Host=localhost;Port=5432;Database=gstv_CP;Username=postgres;Password=12345;";
 
-        // Существующий метод аутентификации
         public (bool success, int userId, string username, string role) AuthenticateUser(string username, string password)
         {
             try
@@ -17,26 +16,19 @@ namespace WpfApp1
                 using (var connection = new NpgsqlConnection(connectionString))
                 {
                     connection.Open();
-
-                    string query = @"
-                        SELECT u.user_id, u.username, r.name as role_name
-                        FROM users u
-                        JOIN roles r ON u.role_id = r.role_id
-                        WHERE u.username = @username AND u.password = @password";
-
-                    using (var command = new NpgsqlCommand(query, connection))
+                    string query = @"SELECT u.user_id, u.username, r.name
+                                     FROM users u JOIN roles r ON u.role_id = r.role_id
+                                     WHERE u.username = @username AND u.password = @password";
+                    using (var cmd = new NpgsqlCommand(query, connection))
                     {
-                        command.Parameters.AddWithValue("@username", username);
-                        command.Parameters.AddWithValue("@password", password);
-
-                        using (var reader = command.ExecuteReader())
+                        cmd.Parameters.AddWithValue("@username", username);
+                        cmd.Parameters.AddWithValue("@password", password);
+                        using (var reader = cmd.ExecuteReader())
                         {
                             if (reader.Read())
                             {
                                 int userId = reader.GetInt32(0);
-                                // Обновляем время последнего входа
                                 UpdateLastLogin(userId);
-
                                 return (true, userId, reader.GetString(1), reader.GetString(2));
                             }
                         }
@@ -48,7 +40,6 @@ namespace WpfApp1
                 MessageBox.Show($"Ошибка подключения к базе данных: {ex.Message}", "Ошибка",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
-
             return (false, 0, "", "");
         }
 
@@ -59,23 +50,17 @@ namespace WpfApp1
                 using (var connection = new NpgsqlConnection(connectionString))
                 {
                     connection.Open();
-
-                    string query = "UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE user_id = @userId";
-
-                    using (var command = new NpgsqlCommand(query, connection))
+                    using (var cmd = new NpgsqlCommand(
+                        "UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE user_id = @userId", connection))
                     {
-                        command.Parameters.AddWithValue("@userId", userId);
-                        command.ExecuteNonQuery();
+                        cmd.Parameters.AddWithValue("@userId", userId);
+                        cmd.ExecuteNonQuery();
                     }
                 }
             }
-            catch
-            {
-                // Игнорируем ошибку обновления времени входа
-            }
+            catch { }
         }
 
-        // НОВЫЙ МЕТОД: Получение профиля пользователя
         public UserProfile GetUserProfile(int userId)
         {
             try
@@ -83,31 +68,20 @@ namespace WpfApp1
                 using (var connection = new NpgsqlConnection(connectionString))
                 {
                     connection.Open();
-
-                    string query = @"
-                SELECT 
-                    u.user_id, 
-                    u.username,
-                    COALESCE(u.display_name, u.username) as display_name,
-                    u.email,
-                    COALESCE(u.bio, '') as bio,
-                    COALESCE(u.avatar_url, '') as avatar_url,
-                    r.name as role_name,
-                    u.created_at,
-                    COALESCE(u.last_login, u.created_at) as last_login,
-                    COALESCE(u.updated_at, u.created_at) as updated_at
-                FROM users u
-                JOIN roles r ON u.role_id = r.role_id
-                WHERE u.user_id = @userId";
-
-                    using (var command = new NpgsqlCommand(query, connection))
+                    string query = @"SELECT u.user_id, u.username,
+                        COALESCE(u.display_name, u.username),
+                        COALESCE(u.email,''), COALESCE(u.bio,''), COALESCE(u.avatar_url,''),
+                        r.name, u.created_at,
+                        COALESCE(u.last_login, u.created_at),
+                        COALESCE(u.updated_at, u.created_at)
+                        FROM users u JOIN roles r ON u.role_id = r.role_id
+                        WHERE u.user_id = @userId";
+                    using (var cmd = new NpgsqlCommand(query, connection))
                     {
-                        command.Parameters.AddWithValue("@userId", userId);
-
-                        using (var reader = command.ExecuteReader())
+                        cmd.Parameters.AddWithValue("@userId", userId);
+                        using (var reader = cmd.ExecuteReader())
                         {
                             if (reader.Read())
-                            {
                                 return new UserProfile
                                 {
                                     UserId = reader.GetInt32(0),
@@ -121,7 +95,6 @@ namespace WpfApp1
                                     LastLogin = reader.GetDateTime(8),
                                     UpdatedAt = reader.GetDateTime(9)
                                 };
-                            }
                         }
                     }
                 }
@@ -131,7 +104,6 @@ namespace WpfApp1
                 MessageBox.Show($"Ошибка загрузки профиля: {ex.Message}", "Ошибка",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
-
             return null;
         }
 
@@ -143,74 +115,253 @@ namespace WpfApp1
                 {
                     connection.Open();
 
-                    // Проверяем и добавляем отсутствующие поля
-                    string[] columnsToAdd = {
-                "display_name VARCHAR(255)",
-                "bio TEXT",
-                "avatar_url VARCHAR(500)",
-                "last_login TIMESTAMP",
-                "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
-            };
-
-                    foreach (var columnDef in columnsToAdd)
+                    // Поля users
+                    string[] cols = { "display_name VARCHAR(255)", "bio TEXT",
+                                      "avatar_url VARCHAR(500)", "last_login TIMESTAMP",
+                                      "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP" };
+                    foreach (var col in cols)
                     {
-                        string columnName = columnDef.Split(' ')[0];
-
-                        string checkQuery = $@"
-                    DO $$
-                    BEGIN
-                        IF NOT EXISTS (
-                            SELECT 1 
-                            FROM information_schema.columns 
-                            WHERE table_name = 'users' 
-                            AND column_name = '{columnName}'
-                        ) THEN
-                            EXECUTE 'ALTER TABLE users ADD COLUMN {columnDef}';
-                        END IF;
-                    END $$";
-
-                        using (var command = new NpgsqlCommand(checkQuery, connection))
-                        {
-                            command.ExecuteNonQuery();
-                        }
+                        string name = col.Split(' ')[0];
+                        ExecuteNonQuery(connection, $@"DO $$ BEGIN
+                            IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                                WHERE table_name='users' AND column_name='{name}')
+                            THEN EXECUTE 'ALTER TABLE users ADD COLUMN {col}'; END IF; END $$");
                     }
 
-                    Console.WriteLine("Структура базы данных проверена и обновлена");
+                    // Таблица избранных
+                    ExecuteNonQuery(connection, @"CREATE TABLE IF NOT EXISTS favorites (
+                        favorite_id  SERIAL PRIMARY KEY,
+                        user_id      INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+                        title        TEXT    NOT NULL,
+                        description  TEXT,
+                        url          TEXT,
+                        image_url    TEXT,
+                        source       TEXT,
+                        author       TEXT,
+                        category     TEXT,
+                        published_at TIMESTAMP,
+                        added_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )");
+
+                    // Таблица комментариев к избранным
+                    ExecuteNonQuery(connection, @"CREATE TABLE IF NOT EXISTS favorite_comments (
+                        comment_id   SERIAL PRIMARY KEY,
+                        favorite_id  INTEGER NOT NULL REFERENCES favorites(favorite_id) ON DELETE CASCADE,
+                        user_id      INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+                        comment_text TEXT    NOT NULL,
+                        created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )");
+
+                    ExecuteNonQuery(connection,
+                        "CREATE INDEX IF NOT EXISTS idx_favorites_user ON favorites(user_id)");
+                    ExecuteNonQuery(connection,
+                        "CREATE INDEX IF NOT EXISTS idx_fav_comments_fav ON favorite_comments(favorite_id)");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Ошибка инициализации структуры БД: {ex.Message}");
+                Console.WriteLine($"Ошибка инициализации БД: {ex.Message}");
             }
         }
-        private bool CheckIfTableHasNewFields()
+
+        private void ExecuteNonQuery(NpgsqlConnection conn, string sql)
+        {
+            using (var cmd = new NpgsqlCommand(sql, conn))
+                cmd.ExecuteNonQuery();
+        }
+
+        // ── Избранное ──────────────────────────────────────────────────────
+
+        public bool AddToFavorites(int userId, NewsArticle article)
         {
             try
             {
                 using (var connection = new NpgsqlConnection(connectionString))
                 {
                     connection.Open();
-
-                    // Проверяем наличие поля display_name
-                    string query = @"
-                        SELECT column_name 
-                        FROM information_schema.columns 
-                        WHERE table_name = 'users' AND column_name = 'display_name'";
-
-                    using (var command = new NpgsqlCommand(query, connection))
+                    // Не добавляем дубликаты
+                    using (var check = new NpgsqlCommand(
+                        "SELECT COUNT(*) FROM favorites WHERE user_id=@uid AND url=@url", connection))
                     {
-                        var result = command.ExecuteScalar();
-                        return result != null;
+                        check.Parameters.AddWithValue("@uid", userId);
+                        check.Parameters.AddWithValue("@url", article.Url ?? "");
+                        if (Convert.ToInt32(check.ExecuteScalar()) > 0) return false;
                     }
+                    using (var cmd = new NpgsqlCommand(@"
+                        INSERT INTO favorites
+                            (user_id,title,description,url,image_url,source,author,category,published_at)
+                        VALUES
+                            (@uid,@title,@desc,@url,@img,@src,@auth,@cat,@pub)", connection))
+                    {
+                        cmd.Parameters.AddWithValue("@uid", userId);
+                        cmd.Parameters.AddWithValue("@title", article.Title ?? "");
+                        cmd.Parameters.AddWithValue("@desc", article.Description ?? "");
+                        cmd.Parameters.AddWithValue("@url", article.Url ?? "");
+                        cmd.Parameters.AddWithValue("@img", article.ImageUrl ?? "");
+                        cmd.Parameters.AddWithValue("@src", article.Source ?? "");
+                        cmd.Parameters.AddWithValue("@auth", article.Author ?? "");
+                        cmd.Parameters.AddWithValue("@cat", article.Category ?? "");
+                        cmd.Parameters.AddWithValue("@pub", article.PublishedAt);
+                        cmd.ExecuteNonQuery();
+                    }
+                    return true;
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                MessageBox.Show($"Ошибка добавления в избранное: {ex.Message}", "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
                 return false;
             }
         }
 
-        // НОВЫЙ МЕТОД: Обновление профиля пользователя
+        public bool RemoveFromFavorites(int userId, string url)
+        {
+            try
+            {
+                using (var connection = new NpgsqlConnection(connectionString))
+                {
+                    connection.Open();
+                    using (var cmd = new NpgsqlCommand(
+                        "DELETE FROM favorites WHERE user_id=@uid AND url=@url", connection))
+                    {
+                        cmd.Parameters.AddWithValue("@uid", userId);
+                        cmd.Parameters.AddWithValue("@url", url ?? "");
+                        return cmd.ExecuteNonQuery() > 0;
+                    }
+                }
+            }
+            catch { return false; }
+        }
+
+        public bool IsFavorite(int userId, string url)
+        {
+            try
+            {
+                using (var connection = new NpgsqlConnection(connectionString))
+                {
+                    connection.Open();
+                    using (var cmd = new NpgsqlCommand(
+                        "SELECT COUNT(*) FROM favorites WHERE user_id=@uid AND url=@url", connection))
+                    {
+                        cmd.Parameters.AddWithValue("@uid", userId);
+                        cmd.Parameters.AddWithValue("@url", url ?? "");
+                        return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
+                    }
+                }
+            }
+            catch { return false; }
+        }
+
+        public List<FavoriteArticle> GetFavorites(int userId)
+        {
+            var list = new List<FavoriteArticle>();
+            try
+            {
+                using (var connection = new NpgsqlConnection(connectionString))
+                {
+                    connection.Open();
+                    using (var cmd = new NpgsqlCommand(@"
+                        SELECT favorite_id,title,description,url,image_url,
+                               source,author,category,published_at,added_at
+                        FROM favorites WHERE user_id=@uid
+                        ORDER BY added_at DESC", connection))
+                    {
+                        cmd.Parameters.AddWithValue("@uid", userId);
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                                list.Add(new FavoriteArticle
+                                {
+                                    FavoriteId = reader.GetInt32(0),
+                                    Title = reader.GetString(1),
+                                    Description = reader.IsDBNull(2) ? "" : reader.GetString(2),
+                                    Url = reader.IsDBNull(3) ? "" : reader.GetString(3),
+                                    ImageUrl = reader.IsDBNull(4) ? "" : reader.GetString(4),
+                                    Source = reader.IsDBNull(5) ? "" : reader.GetString(5),
+                                    Author = reader.IsDBNull(6) ? "" : reader.GetString(6),
+                                    Category = reader.IsDBNull(7) ? "" : reader.GetString(7),
+                                    PublishedAt = reader.IsDBNull(8) ? DateTime.Now : reader.GetDateTime(8),
+                                    AddedAt = reader.GetDateTime(9)
+                                });
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка загрузки избранного: {ex.Message}", "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            return list;
+        }
+
+        // ── Комментарии к избранному ───────────────────────────────────────
+
+        public bool AddComment(int favoriteId, int userId, string text)
+        {
+            try
+            {
+                using (var connection = new NpgsqlConnection(connectionString))
+                {
+                    connection.Open();
+                    using (var cmd = new NpgsqlCommand(@"
+                        INSERT INTO favorite_comments (favorite_id,user_id,comment_text)
+                        VALUES (@fid,@uid,@txt)", connection))
+                    {
+                        cmd.Parameters.AddWithValue("@fid", favoriteId);
+                        cmd.Parameters.AddWithValue("@uid", userId);
+                        cmd.Parameters.AddWithValue("@txt", text);
+                        cmd.ExecuteNonQuery();
+                    }
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка добавления комментария: {ex.Message}", "Ошибка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+                return false;
+            }
+        }
+
+        public List<FavoriteComment> GetComments(int favoriteId)
+        {
+            var list = new List<FavoriteComment>();
+            try
+            {
+                using (var connection = new NpgsqlConnection(connectionString))
+                {
+                    connection.Open();
+                    using (var cmd = new NpgsqlCommand(@"
+                        SELECT fc.comment_id, fc.comment_text, fc.created_at,
+                               COALESCE(u.display_name, u.username)
+                        FROM favorite_comments fc
+                        JOIN users u ON fc.user_id = u.user_id
+                        WHERE fc.favorite_id = @fid
+                        ORDER BY fc.created_at ASC", connection))
+                    {
+                        cmd.Parameters.AddWithValue("@fid", favoriteId);
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                                list.Add(new FavoriteComment
+                                {
+                                    CommentId = reader.GetInt32(0),
+                                    Text = reader.GetString(1),
+                                    CreatedAt = reader.GetDateTime(2),
+                                    AuthorName = reader.GetString(3)
+                                });
+                        }
+                    }
+                }
+            }
+            catch { }
+            return list;
+        }
+
+        // ── Остальные методы (профиль, роли) ──────────────────────────────
+
         public bool UpdateUserProfile(int userId, UpdateProfileRequest request)
         {
             try
@@ -218,133 +369,57 @@ namespace WpfApp1
                 using (var connection = new NpgsqlConnection(connectionString))
                 {
                     connection.Open();
-
-                    // Проверяем текущий пароль если меняем пароль
                     if (!string.IsNullOrEmpty(request.NewPassword))
-                    {
                         if (!VerifyPassword(userId, request.CurrentPassword))
                         {
                             MessageBox.Show("Текущий пароль неверен", "Ошибка",
                                 MessageBoxButton.OK, MessageBoxImage.Error);
                             return false;
                         }
-                    }
 
-                    // Начинаем транзакцию
                     using (var transaction = connection.BeginTransaction())
                     {
                         try
                         {
-                            // Собираем поля для обновления
                             var updates = new List<string>();
                             var parameters = new List<NpgsqlParameter>
-                    {
-                        new NpgsqlParameter("@userId", userId)
-                    };
+                                { new NpgsqlParameter("@userId", userId) };
 
-                            // Добавляем параметры динамически
                             if (!string.IsNullOrEmpty(request.DisplayName))
                             {
                                 updates.Add("display_name = @displayName");
                                 parameters.Add(new NpgsqlParameter("@displayName", request.DisplayName));
                             }
-
                             if (request.Bio != null)
                             {
                                 updates.Add("bio = @bio");
                                 parameters.Add(new NpgsqlParameter("@bio", request.Bio));
                             }
-
-                            // Обработка аватара
-                            if (!string.IsNullOrEmpty(request.AvatarUrl))
+                            if (!string.IsNullOrEmpty(request.AvatarUrl) && request.AvatarUrl.StartsWith("http"))
                             {
-                                // Проверяем, существует ли файл
-                                if (System.IO.File.Exists(request.AvatarUrl))
-                                {
-                                    // Копируем файл в папку приложения
-                                    string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-                                    string appFolder = System.IO.Path.Combine(appDataPath, "NewsPortal", "Avatars");
-
-                                    if (!System.IO.Directory.Exists(appFolder))
-                                    {
-                                        System.IO.Directory.CreateDirectory(appFolder);
-                                    }
-
-                                    string fileName = $"avatar_{userId}_{DateTime.Now:yyyyMMddHHmmss}{System.IO.Path.GetExtension(request.AvatarUrl)}";
-                                    string destinationPath = System.IO.Path.Combine(appFolder, fileName);
-
-                                    // Копируем файл
-                                    System.IO.File.Copy(request.AvatarUrl, destinationPath, true);
-
-                                    // Сохраняем относительный путь
-                                    string relativePath = $"avatars/{fileName}";
-                                    updates.Add("avatar_url = @avatarUrl");
-                                    parameters.Add(new NpgsqlParameter("@avatarUrl", relativePath));
-                                }
-                                else if (request.AvatarUrl.StartsWith("http"))
-                                {
-                                    // URL из интернета
-                                    updates.Add("avatar_url = @avatarUrl");
-                                    parameters.Add(new NpgsqlParameter("@avatarUrl", request.AvatarUrl));
-                                }
-                                else if (string.IsNullOrEmpty(request.AvatarUrl))
-                                {
-                                    // Удаление аватара
-                                    updates.Add("avatar_url = ''");
-                                }
+                                updates.Add("avatar_url = @avatarUrl");
+                                parameters.Add(new NpgsqlParameter("@avatarUrl", request.AvatarUrl));
                             }
-
                             if (!string.IsNullOrEmpty(request.NewPassword))
                             {
                                 updates.Add("password = @newPassword");
                                 parameters.Add(new NpgsqlParameter("@newPassword", request.NewPassword));
                             }
-
-                            // Всегда обновляем время
                             updates.Add("updated_at = CURRENT_TIMESTAMP");
 
-                            if (updates.Count > 0)
+                            if (updates.Count == 0) return false;
+
+                            using (var cmd = new NpgsqlCommand(
+                                $"UPDATE users SET {string.Join(", ", updates)} WHERE user_id = @userId",
+                                connection))
                             {
-                                string query = $"UPDATE users SET {string.Join(", ", updates)} WHERE user_id = @userId";
-
-                                using (var command = new NpgsqlCommand(query, connection))
-                                {
-                                    command.Transaction = transaction;
-
-                                    foreach (var param in parameters)
-                                    {
-                                        command.Parameters.Add(param);
-                                    }
-
-                                    int rowsAffected = command.ExecuteNonQuery();
-
-                                    if (rowsAffected > 0)
-                                    {
-                                        transaction.Commit();
-                                        return true;
-                                    }
-                                    else
-                                    {
-                                        transaction.Rollback();
-                                        MessageBox.Show("Пользователь не найден", "Ошибка",
-                                            MessageBoxButton.OK, MessageBoxImage.Error);
-                                        return false;
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                transaction.Rollback();
-                                MessageBox.Show("Нет данных для обновления", "Информация",
-                                    MessageBoxButton.OK, MessageBoxImage.Information);
-                                return false;
+                                cmd.Transaction = transaction;
+                                foreach (var p in parameters) cmd.Parameters.Add(p);
+                                if (cmd.ExecuteNonQuery() > 0) { transaction.Commit(); return true; }
+                                transaction.Rollback(); return false;
                             }
                         }
-                        catch (Exception ex)
-                        {
-                            transaction.Rollback();
-                            throw new Exception($"Ошибка при обновлении: {ex.Message}", ex);
-                        }
+                        catch { transaction.Rollback(); throw; }
                     }
                 }
             }
@@ -356,7 +431,6 @@ namespace WpfApp1
             }
         }
 
-        // Проверка пароля
         private bool VerifyPassword(int userId, string password)
         {
             try
@@ -364,56 +438,21 @@ namespace WpfApp1
                 using (var connection = new NpgsqlConnection(connectionString))
                 {
                     connection.Open();
-
-                    string query = "SELECT COUNT(*) FROM users WHERE user_id = @userId AND password = @password";
-
-                    using (var command = new NpgsqlCommand(query, connection))
+                    using (var cmd = new NpgsqlCommand(
+                        "SELECT COUNT(*) FROM users WHERE user_id=@uid AND password=@pwd", connection))
                     {
-                        command.Parameters.AddWithValue("@userId", userId);
-                        command.Parameters.AddWithValue("@password", password);
-
-                        var result = command.ExecuteScalar();
-                        return Convert.ToInt32(result) > 0;
+                        cmd.Parameters.AddWithValue("@uid", userId);
+                        cmd.Parameters.AddWithValue("@pwd", password);
+                        return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
                     }
                 }
             }
-            catch
-            {
-                return false;
-            }
+            catch { return false; }
         }
 
-        // Проверка доступности имени пользователя
-        public bool IsUsernameAvailable(string username, int excludeUserId = 0)
-        {
-            try
-            {
-                using (var connection = new NpgsqlConnection(connectionString))
-                {
-                    connection.Open();
-
-                    string query = "SELECT COUNT(*) FROM users WHERE username = @username AND user_id != @excludeUserId";
-
-                    using (var command = new NpgsqlCommand(query, connection))
-                    {
-                        command.Parameters.AddWithValue("@username", username);
-                        command.Parameters.AddWithValue("@excludeUserId", excludeUserId);
-
-                        var result = command.ExecuteScalar();
-                        return Convert.ToInt32(result) == 0;
-                    }
-                }
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        // Существующий метод получения прав роли
         public Dictionary<string, bool> GetRolePermissions(string role)
         {
-            var permissions = new Dictionary<string, bool>
+            var p = new Dictionary<string, bool>
             {
                 ["CanViewNews"] = true,
                 ["CanAddNews"] = false,
@@ -425,99 +464,28 @@ namespace WpfApp1
                 ["CanModerateComments"] = false,
                 ["CanManageUsers"] = false,
                 ["CanModerateNews"] = false,
-                ["CanEditProfile"] = true // Все могут редактировать свой профиль
+                ["CanEditProfile"] = true
             };
-
-            switch (role.ToLower())
+            switch (role?.ToLower())
             {
                 case "admin":
-                    permissions["CanAddNews"] = true;
-                    permissions["CanEditNews"] = true;
-                    permissions["CanDeleteNews"] = true;
-                    permissions["CanAddComments"] = true;
-                    permissions["CanEditComments"] = true;
-                    permissions["CanDeleteComments"] = true;
-                    permissions["CanModerateComments"] = true;
-                    permissions["CanManageUsers"] = true;
-                    permissions["CanModerateNews"] = true;
+                    p["CanAddNews"] = p["CanEditNews"] = p["CanDeleteNews"] = true;
+                    p["CanAddComments"] = p["CanEditComments"] = p["CanDeleteComments"] = true;
+                    p["CanModerateComments"] = p["CanManageUsers"] = p["CanModerateNews"] = true;
                     break;
-
                 case "manager":
-                    permissions["CanAddNews"] = true;
-                    permissions["CanEditNews"] = true;
-                    permissions["CanDeleteNews"] = false;
-                    permissions["CanAddComments"] = true;
-                    permissions["CanEditComments"] = true;
-                    permissions["CanDeleteComments"] = true;
-                    permissions["CanModerateComments"] = true;
-                    permissions["CanManageUsers"] = true;
-                    permissions["CanModerateNews"] = true;
+                    p["CanAddNews"] = p["CanEditNews"] = true;
+                    p["CanAddComments"] = p["CanEditComments"] = p["CanDeleteComments"] = true;
+                    p["CanModerateComments"] = p["CanManageUsers"] = p["CanModerateNews"] = true;
                     break;
-
                 case "user":
-                    permissions["CanAddComments"] = true;
-                    permissions["CanEditComments"] = false;
-                    permissions["CanDeleteComments"] = false;
+                    p["CanAddComments"] = true;
                     break;
-
                 case "guest":
-                    permissions["CanEditProfile"] = false;
+                    p["CanEditProfile"] = false;
                     break;
             }
-
-            return permissions;
-        }
-
-        // Дополнительный метод для обновления структуры БД
-        public void UpdateDatabaseStructure()
-        {
-            try
-            {
-                using (var connection = new NpgsqlConnection(connectionString))
-                {
-                    connection.Open();
-
-                    // Добавляем новые поля если их нет
-                    string[] newColumns = {
-                        "display_name", "bio", "avatar_url", "last_login", "updated_at"
-                    };
-
-                    foreach (var column in newColumns)
-                    {
-                        string checkQuery = $@"
-                            DO $$ 
-                            BEGIN 
-                                IF NOT EXISTS (
-                                    SELECT 1 
-                                    FROM information_schema.columns 
-                                    WHERE table_name = 'users' AND column_name = '{column}'
-                                ) THEN
-                                    EXECUTE 'ALTER TABLE users ADD COLUMN {column} VARCHAR(500)';
-                                END IF;
-                            END $$";
-
-                        using (var command = new NpgsqlCommand(checkQuery, connection))
-                        {
-                            command.ExecuteNonQuery();
-                        }
-                    }
-
-                    // Обновляем существующих пользователей
-                    string updateQuery = "UPDATE users SET display_name = username WHERE display_name IS NULL";
-                    using (var command = new NpgsqlCommand(updateQuery, connection))
-                    {
-                        command.ExecuteNonQuery();
-                    }
-
-                    MessageBox.Show("Структура базы данных успешно обновлена", "Информация",
-                        MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Ошибка обновления структуры БД: {ex.Message}", "Ошибка",
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
-            }
+            return p;
         }
     }
 }

@@ -117,6 +117,9 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="FavoritesWindow.xaml.cs">
+      <DependentUpon>FavoritesWindow.xaml</DependentUpon>
+    </Compile>
     <Compile Include="RegionSelectWindow.xaml.cs">
       <DependentUpon>RegionSelectWindow.xaml</DependentUpon>
     </Compile>
@@ -127,6 +130,10 @@
     <Compile Include="WeatherWindow.xaml.cs">
       <DependentUpon>WeatherWindow.xaml</DependentUpon>
     </Compile>
+    <Page Include="FavoritesWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>

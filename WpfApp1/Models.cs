@@ -2,7 +2,6 @@
 
 namespace WpfApp1
 {
-    // Основная модель новости — используется везде в приложении
     public class NewsArticle
     {
         public string Title { get; set; }
@@ -21,18 +20,12 @@ namespace WpfApp1
             {
                 if (string.IsNullOrEmpty(Description)) return "";
                 return Description.Length > 120
-                    ? Description.Substring(0, 120) + "..."
-                    : Description;
+                    ? Description.Substring(0, 120) + "..." : Description;
             }
         }
-
-        public string FormattedDate
-        {
-            get { return PublishedAt.ToString("dd.MM.yyyy HH:mm"); }
-        }
+        public string FormattedDate => PublishedAt.ToString("dd.MM.yyyy HH:mm");
     }
 
-    // Профиль пользователя
     public class UserProfile
     {
         public int UserId { get; set; }
@@ -47,7 +40,6 @@ namespace WpfApp1
         public DateTime UpdatedAt { get; set; }
     }
 
-    // Запрос на обновление профиля
     public class UpdateProfileRequest
     {
         public string DisplayName { get; set; }
@@ -55,5 +47,41 @@ namespace WpfApp1
         public string AvatarUrl { get; set; }
         public string CurrentPassword { get; set; }
         public string NewPassword { get; set; }
+    }
+
+    public class FavoriteArticle
+    {
+        public int FavoriteId { get; set; }
+        public string Title { get; set; }
+        public string Description { get; set; }
+        public string Url { get; set; }
+        public string ImageUrl { get; set; }
+        public string Source { get; set; }
+        public string Author { get; set; }
+        public string Category { get; set; }
+        public DateTime PublishedAt { get; set; }
+        public DateTime AddedAt { get; set; }
+
+        public string FormattedDate => PublishedAt.ToString("dd.MM.yyyy HH:mm");
+        public string FormattedAddedAt => AddedAt.ToString("dd.MM.yyyy HH:mm");
+        public string ShortDescription
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(Description)) return "";
+                return Description.Length > 120
+                    ? Description.Substring(0, 120) + "..." : Description;
+            }
+        }
+    }
+
+    public class FavoriteComment
+    {
+        public int CommentId { get; set; }
+        public string Text { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public string AuthorName { get; set; }
+
+        public string FormattedDate => CreatedAt.ToString("dd.MM.yyyy HH:mm");
     }
 }

@@ -76,7 +76,7 @@ namespace WpfApp1
                 ["Воронеж"] = "moe-online.ru,vrn.ru,kommuna.ru,voronezh-media.ru",
                 ["Пермь"] = "59.ru,permkrai.ru,properm.ru,perm.ru",
                 ["Волгоград"] = "v1.ru,volgograd.ru,volg.ru,riac34.ru",
-                ["Магнитогорск"] = "magnitogorsk.ru,magnitogorsktv.ru,mgorod.ru", 
+                ["Магнитогорск"] = "magcity74.ru,magmetall.ru,magnitka-news.ru,mr-info.ru,magnitogorsk.ru,magnitogorsktv.ru", 
             };
 
         // Ключевые слова для регионального поиска как запасной вариант
